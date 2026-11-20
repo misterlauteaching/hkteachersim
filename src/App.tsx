@@ -26,6 +26,7 @@ export default function App() {
   const [state, setState] = useState<GameState>(() => createNewGameState());
   const [bannerMsg, setBannerMsg] = useState<string | null>(null);
   const [selectedStance, setSelectedStance] = useState<PolicyStance>('BALANCED');
+  const [deskModalOpen, setDeskModalOpen] = useState<boolean>(false);
 
   // Load autosave on mount if present
   useEffect(() => {
@@ -113,6 +114,12 @@ export default function App() {
 
     commitState(next);
   };
+
+  const getMissingStudentNames = (missingIds: string[]) =>
+    missingIds
+      .map((id) => state.students.find((s) => s.id === id)?.nameZh)
+      .filter(Boolean)
+      .join('、');
 
   return (
     <div
@@ -237,11 +244,14 @@ export default function App() {
                 room={state.currentRoom}
                 inLesson={state.inLesson}
                 incidents={state.activeIncidents}
+                playerPosture={energyCue.posture}
+                playerSpeedMultiplier={energyCue.speedMultiplier}
+                dangerVignette={stressCue.dangerVignette}
                 onSelectIncident={handleOpenIncident}
-                onInteractDesk={() => commitState(enterRoom(state, 'STAFFROOM'))}
+                onOpenDesk={() => setDeskModalOpen(true)}
               />
 
-              {/* Room Navigation Bar (Walk between Staffroom, 4C, 1B, Detention, Gate) */}
+              {/* Room Navigation Bar */}
               <div style={{ background: '#1e293b', borderRadius: 10, padding: 12, border: '1px solid #334155', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: '#94a3b8' }}>校園移動：</span>
                 {(
@@ -256,7 +266,10 @@ export default function App() {
                 ).map(([rid, label]) => (
                   <button
                     key={rid}
-                    onClick={() => commitState(enterRoom(state, rid))}
+                    onClick={() => {
+                      setDeskModalOpen(false);
+                      commitState(enterRoom(state, rid));
+                    }}
                     style={{
                       background: state.currentRoom === rid ? '#0d9488' : '#334155',
                       color: '#fff',
@@ -273,7 +286,10 @@ export default function App() {
 
                 {state.clockMinutes >= 930 && (
                   <button
-                    onClick={() => commitState(leaveSchoolForToday(state), true)}
+                    onClick={() => {
+                      setDeskModalOpen(false);
+                      commitState(leaveSchoolForToday(state), true);
+                    }}
                     style={{
                       marginLeft: 'auto',
                       background: '#2563eb',
@@ -320,7 +336,6 @@ export default function App() {
 
         {/* Right Column: Teacher's Desk Hub, 3-Slot Leftover Tray, Homework Ledger & Gossip */}
         <aside style={{ background: '#1e293b', borderRadius: 10, padding: 14, border: '1px solid #334155', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* 3-Slot FIFO Leftover Tray */}
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24', marginBottom: 6 }}>
               未完成積壓盤 ({state.leftovers.length} / 3 格 — 第4項會逼爆最舊一項)
@@ -344,44 +359,49 @@ export default function App() {
             )}
           </div>
 
-          {/* English Homework & June Book Inspection Ledger */}
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8', marginBottom: 6 }}>
               英文科功課及六月查簿紀錄冊
             </div>
-            {state.homeworkLedger.map((hw) => (
-              <div key={hw.id} style={{ background: '#0f172a', padding: 8, borderRadius: 6, marginBottom: 6, fontSize: 12 }}>
-                <div style={{ fontWeight: 700 }}>{hw.title}</div>
-                <div style={{ color: '#cbd5e1', marginTop: 2 }}>
-                  狀態：{hw.deliveredToDesk ? `已收 ${hw.submittedCount}/${hw.totalStudents} 份（已改 ${hw.markedCount} 份）` : '08:20 早會後由班長送上桌面'}
+            {state.homeworkLedger.map((hw) => {
+              const missingNames = getMissingStudentNames(hw.missingStudentIds);
+              return (
+                <div key={hw.id} style={{ background: '#0f172a', padding: 8, borderRadius: 6, marginBottom: 6, fontSize: 12 }}>
+                  <div style={{ fontWeight: 700 }}>{hw.title}</div>
+                  <div style={{ color: '#cbd5e1', marginTop: 2 }}>
+                    狀態：{hw.deliveredToDesk ? `已收 ${hw.submittedCount}/${hw.totalStudents} 份（已改 ${hw.markedCount} 份）` : '08:20 早會後由班長送上桌面'}
+                  </div>
+                  {missingNames && (
+                    <div style={{ color: '#fbbf24', marginTop: 2, fontSize: 11 }}>
+                      欠交：{missingNames}
+                    </div>
+                  )}
+                  {hw.deliveredToDesk && hw.markedCount < hw.submittedCount && !state.curfewTriggered && (
+                    <button
+                      onClick={() => commitState(simulateWorkMicro(state, 'MARKING', hw.id))}
+                      style={{ marginTop: 6, background: '#475569', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}
+                    >
+                      快速批改（省時但質素較隨機）
+                    </button>
+                  )}
                 </div>
-                {hw.deliveredToDesk && hw.markedCount < hw.submittedCount && !state.curfewTriggered && (
-                  <button
-                    onClick={() => commitState(simulateWorkMicro(state, 'MARKING', hw.id))}
-                    style={{ marginTop: 6, background: '#475569', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}
-                  >
-                    快速批改（省時但質素較隨機）
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Teacher's Desk Micro-Recoveries */}
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#a7f3d0', marginBottom: 6 }}>
               辦公桌小休與恢復（19:00 鎖門後停用）
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'NAP_10'))} style={{ fontSize: 11, padding: '5px 8px', borderRadius: 4, border: 'none', background: '#334155', color: '#fff', cursor: 'pointer' }}>小睡10分</button>
-              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'NAP_20'))} style={{ fontSize: 11, padding: '5px 8px', borderRadius: 4, border: 'none', background: '#334155', color: '#fff', cursor: 'pointer' }}>小睡20分</button>
-              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'COFFEE'))} style={{ fontSize: 11, padding: '5px 8px', borderRadius: 4, border: 'none', background: '#334155', color: '#fff', cursor: 'pointer' }}>沖杯咖啡</button>
-              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'SNACK'))} style={{ fontSize: 11, padding: '5px 8px', borderRadius: 4, border: 'none', background: '#334155', color: '#fff', cursor: 'pointer' }}>食零食 ({state.snacksRemainingToday})</button>
-              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'CHAT'))} style={{ fontSize: 11, padding: '5px 8px', borderRadius: 4, border: 'none', background: '#334155', color: '#fff', cursor: 'pointer' }}>同隔離位傾偈</button>
+              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'NAP_10'))} style={recBtnStyle}>小睡10分</button>
+              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'NAP_20'))} style={recBtnStyle}>小睡20分</button>
+              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'COFFEE'))} style={recBtnStyle}>沖杯咖啡</button>
+              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'SNACK'))} style={recBtnStyle}>食零食 ({state.snacksRemainingToday})</button>
+              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'CHAT'))} style={recBtnStyle}>同隔離位傾偈</button>
             </div>
           </div>
 
-          {/* Relationship Bands & Staffroom Gossip */}
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#f472b6', marginBottom: 4 }}>
               四方觀感與教員室風聲
@@ -401,6 +421,42 @@ export default function App() {
           </div>
         </aside>
       </div>
+
+      {/* Dedicated Teacher's Desk Modal when clicking the desk in Staffroom */}
+      {deskModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 45 }}>
+          <div style={{ width: '100%', maxWidth: 560, background: '#1e293b', border: '2px solid #2dd4bf', borderRadius: 12, padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ color: '#2dd4bf' }}>你的辦公桌・工作與小休台</h3>
+              <button onClick={() => setDeskModalOpen(false)} style={{ background: '#334155', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>關閉</button>
+            </div>
+
+            {state.curfewTriggered ? (
+              <p style={{ color: '#fca5a5', fontSize: 13 }}>
+                校工已經準備鎖門（19:00），今日唔可以再做嘢喇，請前往校門離校。
+              </p>
+            ) : (
+              <>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24', marginBottom: 6 }}>便利貼提示</div>
+                <ul style={{ paddingLeft: 16, fontSize: 12, color: '#e2e8f0', marginBottom: 12 }}>
+                  {state.postIts.slice(0, 3).map((p) => (
+                    <li key={p.id}>{p.textZh}</li>
+                  ))}
+                </ul>
+
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#a7f3d0', marginBottom: 6 }}>即時恢復／休息</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button onClick={() => commitState(performDeskRecovery(state, 'NAP_10'))} style={recBtnStyle}>趴低小睡 10 分鐘</button>
+                  <button onClick={() => commitState(performDeskRecovery(state, 'NAP_30'))} style={recBtnStyle}>趴低小睡 30 分鐘</button>
+                  <button onClick={() => commitState(performDeskRecovery(state, 'COFFEE'))} style={recBtnStyle}>沖杯咖啡／奶茶</button>
+                  <button onClick={() => commitState(performDeskRecovery(state, 'SNACK'))} style={recBtnStyle}>食零食 ({state.snacksRemainingToday} 份)</button>
+                  <button onClick={() => commitState(performDeskRecovery(state, 'CHAT'))} style={recBtnStyle}>同隔離位傾偈</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Pokemon-Style Paused Scene Dialogue Modal */}
       {state.activeScene && (
@@ -428,3 +484,13 @@ export default function App() {
     </div>
   );
 }
+
+const recBtnStyle: React.CSSProperties = {
+  fontSize: 11,
+  padding: '6px 9px',
+  borderRadius: 5,
+  border: '1px solid #475569',
+  background: '#334155',
+  color: '#fff',
+  cursor: 'pointer',
+};
