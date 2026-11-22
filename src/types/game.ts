@@ -1,5 +1,3 @@
-// Core v1 TypeScript Schema — Zero raw numbers ever leak directly to UI
-
 export type GameMode =
   | 'WEEK_PLANNING'
   | 'SCHOOL_DAY'
@@ -18,14 +16,8 @@ export type DomainType =
   | 'PERSONAL';
 
 export type EffortBand = '低' | '低中' | '中' | '中高' | '高' | '極高';
-
 export type AttitudeBand = 'Wary' | 'Guarded' | 'Neutral' | 'Warm' | 'Devoted';
-
-export type PolicyStance =
-  | 'ADMIN_FIRST'
-  | 'STUDENTS_FIRST'
-  | 'SELF_PRESERVE'
-  | 'BALANCED';
+export type PolicyStance = 'ADMIN_FIRST' | 'STUDENTS_FIRST' | 'SELF_PRESERVE' | 'BALANCED';
 
 export type ClassCode =
   | '1A' | '1B' | '1C'
@@ -36,15 +28,14 @@ export type ClassCode =
   | '6A' | '6B' | '6C';
 
 export type RoomId =
-  | 'STAFFROOM'          // 2/F Left
-  | 'CORRIDOR_2F'        // 2/F Corridor (Staffroom left, 3A-4C right, Center stairs)
-  | 'CORRIDOR_1F'        // 1/F 3-way junction (North Offices, East 1A-2C, South stairs)
-  | 'CORRIDOR_3F'        // 3/F Corridor (5A-6C, Stairs down)
-  | 'SCHOOL_OFFICE'      // 1/F North General Office
-  | 'PRINCIPAL_OFFICE'   // 1/F North Principal & Vice Principal Office (2 executive desks)
-  | 'GROUND_FLOOR'       // G/F Canteen + Playground + Center Stairs (Up only)
-  | 'CLASSROOM_PASTOR'   // Player's randomized pastoring + teaching class
-  | 'CLASSROOM_TEACH';   // Player's randomized second teaching class
+  | 'STAFFROOM'
+  | 'CORRIDOR_2F'
+  | 'CORRIDOR_1F'
+  | 'CORRIDOR_3F'
+  | 'SCHOOL_OFFICE'
+  | 'PRINCIPAL_OFFICE'
+  | 'GROUND_FLOOR'
+  | `CLASS_${ClassCode}`;
 
 export interface HiddenTraits {
   subjectKnowledge: number;
@@ -86,8 +77,8 @@ export interface StudentProfile {
   nameZh: string;
   gender: 'MALE' | 'FEMALE';
   className: ClassCode;
-  seatRow: number; // 0..2
-  seatCol: number; // 0..4
+  seatRow: number;
+  seatCol: number;
   rapport: number;
   lastInteractedDay: number;
   missingHomeworkIds: string[];

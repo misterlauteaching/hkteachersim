@@ -1,9 +1,7 @@
 // High-Definition 2.5D Sprite-Layered Campus & Classroom Viewport
-// Fixes:
-// - Exact Staffroom vs. Classroom vs. 4-Floor Corridor + School Office + Principal/VP 2-Desk Office mapping
-// - 18 individual classroom plates (public/assets/backgrounds/classrooms/1A.png .. 6C.png)
-// - Calibrated 2.5D character sprite proportions matching room furniture & doorways
-// - Unified Controls: WASD / Arrows + Bottom-Left Mobile Virtual D-Pad + Click/Tap-to-Walk BFS
+// - Properly proportioned character heights (percentage of viewport height) matching chairs, desks & doors
+// - All 18 classrooms (1A..6C) accessible from their respective floor corridors
+// - Distinct HD backgrounds for Staffroom, G/F, 1/F, 2/F, 3/F Corridors, School Office, Principal's Office, and 18 Classrooms
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getFloorForClass } from '../data/schoolData';
@@ -51,11 +49,7 @@ interface InteractiveHotspot {
   onTrigger: () => void;
 }
 
-function findGridPath(
-  start: GridNode,
-  goal: GridNode,
-  blocked: Set<string>
-): GridNode[] {
+function findGridPath(start: GridNode, goal: GridNode, blocked: Set<string>): GridNode[] {
   const key = (x: number, y: number) => `${x},${y}`;
   if (start.x === goal.x && start.y === goal.y) return [];
 
@@ -81,9 +75,7 @@ function findGridPath(
       if (blocked.has(k) && !(nx === goal.x && ny === goal.y)) continue;
 
       const nextPath = [...path, { x: nx, y: ny }];
-      if (nx === goal.x && ny === goal.y) {
-        return nextPath.slice(1);
-      }
+      if (nx === goal.x && ny === goal.y) return nextPath.slice(1);
       visited.add(k);
       queue.push(nextPath);
     }
@@ -123,7 +115,7 @@ export const HDCampusViewport: React.FC<Props> = ({
     if (room === 'STAFFROOM') {
       setPlayerPos({ x: 6, y: 6 });
       setFacing('UP');
-    } else if (room === 'CLASSROOM_PASTOR' || room === 'CLASSROOM_TEACH') {
+    } else if (room.startsWith('CLASS_')) {
       setPlayerPos({ x: 11, y: 5 });
       setFacing('UP');
     } else if (room === 'CORRIDOR_2F') {
@@ -156,12 +148,30 @@ export const HDCampusViewport: React.FC<Props> = ({
       set.add('5,3');
       set.add('8,3');
       set.add('9,3');
-    } else if (room === 'CLASSROOM_PASTOR' || room === 'CLASSROOM_TEACH') {
+    } else if (room.startsWith('CLASS_')) {
       set.add('3,2');
       set.add('4,2');
     }
     return set;
   }, [room]);
+
+  const makeClassHotspot = useCallback(
+    (cls: ClassCode, x: number, y: number): InteractiveHotspot => {
+      const isMine = cls === pastorClass || cls === teachClass;
+      const badge = cls === pastorClass ? ' (班主任)' : cls === teachClass ? ' (任教)' : '';
+      return {
+        id: `enter_${cls}`,
+        x,
+        y,
+        w: 1,
+        h: 1,
+        labelZh: `${cls}${badge}`,
+        accent: isMine ? '#34d399' : '#94a3b8',
+        onTrigger: () => onEnterRoom(`CLASS_${cls}`),
+      };
+    },
+    [pastorClass, teachClass, onEnterRoom]
+  );
 
   const hotspots: InteractiveHotspot[] = useMemo(() => {
     if (room === 'STAFFROOM') {
@@ -200,7 +210,7 @@ export const HDCampusViewport: React.FC<Props> = ({
     }
 
     if (room === 'CORRIDOR_2F') {
-      const list: InteractiveHotspot[] = [
+      return [
         {
           id: 'door_staffroom',
           x: 1,
@@ -213,7 +223,7 @@ export const HDCampusViewport: React.FC<Props> = ({
         },
         {
           id: 'stairs_2f_down',
-          x: 6,
+          x: 4,
           y: 3,
           w: 2,
           h: 1,
@@ -223,57 +233,39 @@ export const HDCampusViewport: React.FC<Props> = ({
         },
         {
           id: 'stairs_2f_up',
-          x: 8,
-          y: 3,
+          x: 4,
+          y: 2,
           w: 2,
           h: 1,
           labelZh: '↑ 中央樓梯：上 3/F',
           accent: '#c084fc',
           onTrigger: () => onEnterRoom('CORRIDOR_3F'),
         },
+        // 6 opposing classrooms on 2/F East (3A-3C top row, 4A-4C bottom row)
+        makeClassHotspot('3A', 8, 3),
+        makeClassHotspot('3B', 10, 3),
+        makeClassHotspot('3C', 12, 3),
+        makeClassHotspot('4A', 8, 6),
+        makeClassHotspot('4B', 10, 6),
+        makeClassHotspot('4C', 12, 6),
       ];
-      if (getFloorForClass(pastorClass) === 'CORRIDOR_2F') {
-        list.push({
-          id: 'enter_pastor_2f',
-          x: 10,
-          y: 5,
-          w: 2,
-          h: 1,
-          labelZh: `進入 ${pastorClass} 課室 (班主任班)`,
-          accent: '#34d399',
-          onTrigger: () => onEnterRoom('CLASSROOM_PASTOR'),
-        });
-      }
-      if (getFloorForClass(teachClass) === 'CORRIDOR_2F') {
-        list.push({
-          id: 'enter_teach_2f',
-          x: 11,
-          y: 6,
-          w: 2,
-          h: 1,
-          labelZh: `進入 ${teachClass} 課室`,
-          accent: '#38bdf8',
-          onTrigger: () => onEnterRoom('CLASSROOM_TEACH'),
-        });
-      }
-      return list;
     }
 
     if (room === 'CORRIDOR_1F') {
-      const list: InteractiveHotspot[] = [
+      return [
         {
           id: 'north_general_office',
-          x: 4,
+          x: 3,
           y: 2,
           w: 2,
           h: 1,
-          labelZh: '↑ 北翼：校務處 (General Office)',
+          labelZh: '↑ 北翼：校務處',
           accent: '#38bdf8',
           onTrigger: () => onEnterRoom('SCHOOL_OFFICE'),
         },
         {
           id: 'north_principal_office',
-          x: 7,
+          x: 5,
           y: 2,
           w: 2,
           h: 1,
@@ -283,78 +275,54 @@ export const HDCampusViewport: React.FC<Props> = ({
         },
         {
           id: 'south_stairs_down',
-          x: 5,
+          x: 4,
           y: 7,
           w: 2,
           h: 1,
-          labelZh: '↓ 南翼樓梯：落 G/F 飯堂操場',
+          labelZh: '↓ 南翼樓梯：落 G/F',
           accent: '#fbbf24',
           onTrigger: () => onEnterRoom('GROUND_FLOOR'),
         },
         {
           id: 'south_stairs_up',
-          x: 8,
+          x: 6,
           y: 7,
           w: 2,
           h: 1,
-          labelZh: '↑ 南翼樓梯：上 2/F 教員室',
+          labelZh: '↑ 南翼樓梯：上 2/F',
           accent: '#2dd4bf',
           onTrigger: () => onEnterRoom('CORRIDOR_2F'),
         },
+        // 6 opposing classrooms on 1/F East (1A-1C top row, 2A-2C bottom row)
+        makeClassHotspot('1A', 9, 3),
+        makeClassHotspot('1B', 11, 3),
+        makeClassHotspot('1C', 13, 3),
+        makeClassHotspot('2A', 9, 6),
+        makeClassHotspot('2B', 11, 6),
+        makeClassHotspot('2C', 13, 6),
       ];
-      if (getFloorForClass(pastorClass) === 'CORRIDOR_1F') {
-        list.push({
-          id: 'enter_pastor_1f',
-          x: 10,
-          y: 4,
-          w: 2,
-          h: 1,
-          labelZh: `東翼對門課室：進入 ${pastorClass}`,
-          accent: '#34d399',
-          onTrigger: () => onEnterRoom('CLASSROOM_PASTOR'),
-        });
-      }
-      if (getFloorForClass(teachClass) === 'CORRIDOR_1F') {
-        list.push({
-          id: 'enter_teach_1f',
-          x: 11,
-          y: 5,
-          w: 2,
-          h: 1,
-          labelZh: `東翼對門課室：進入 ${teachClass}`,
-          accent: '#38bdf8',
-          onTrigger: () => onEnterRoom('CLASSROOM_TEACH'),
-        });
-      }
-      return list;
     }
 
     if (room === 'CORRIDOR_3F') {
-      const list: InteractiveHotspot[] = [
+      return [
         {
           id: 'stairs_3f_down',
-          x: 6,
-          y: 7,
+          x: 10,
+          y: 2,
           w: 2,
           h: 1,
           labelZh: '↓ 3/F 樓梯（只落 2/F）',
           accent: '#2dd4bf',
           onTrigger: () => onEnterRoom('CORRIDOR_2F'),
         },
+        // 6 opposing classrooms on 3/F (5A-5C top row, 6A-6C bottom row)
+        makeClassHotspot('5A', 3, 3),
+        makeClassHotspot('5B', 5, 3),
+        makeClassHotspot('5C', 7, 3),
+        makeClassHotspot('6A', 3, 6),
+        makeClassHotspot('6B', 5, 6),
+        makeClassHotspot('6C', 7, 6),
       ];
-      if (getFloorForClass(pastorClass) === 'CORRIDOR_3F') {
-        list.push({
-          id: 'enter_pastor_3f',
-          x: 9,
-          y: 4,
-          w: 2,
-          h: 1,
-          labelZh: `進入 ${pastorClass} 課室`,
-          accent: '#34d399',
-          onTrigger: () => onEnterRoom('CLASSROOM_PASTOR'),
-        });
-      }
-      return list;
     }
 
     if (room === 'SCHOOL_OFFICE') {
@@ -371,8 +339,8 @@ export const HDCampusViewport: React.FC<Props> = ({
         },
         {
           id: 'so_counter',
-          x: 6,
-          y: 4,
+          x: 5,
+          y: 5,
           w: 2,
           h: 1,
           labelZh: '校務處接待櫃檯',
@@ -431,7 +399,7 @@ export const HDCampusViewport: React.FC<Props> = ({
         },
         {
           id: 'gf_canteen',
-          x: 2,
+          x: 10,
           y: 5,
           w: 2,
           h: 1,
@@ -442,7 +410,8 @@ export const HDCampusViewport: React.FC<Props> = ({
       ];
     }
 
-    const activeCls = room === 'CLASSROOM_PASTOR' ? pastorClass : teachClass;
+    // CLASS_1A .. CLASS_6C: Door is ALWAYS on the right-hand side!
+    const activeCls = room.replace('CLASS_', '') as ClassCode;
     const returnCorridor = getFloorForClass(activeCls);
     return [
       {
@@ -458,8 +427,7 @@ export const HDCampusViewport: React.FC<Props> = ({
     ];
   }, [
     room,
-    pastorClass,
-    teachClass,
+    makeClassHotspot,
     onOpenDeskTasks,
     onQuickSnackOrCoffee,
     onEnterRoom,
@@ -530,7 +498,7 @@ export const HDCampusViewport: React.FC<Props> = ({
       }
     }
 
-    if (room === 'CLASSROOM_PASTOR' || room === 'CLASSROOM_TEACH') {
+    if (room.startsWith('CLASS_')) {
       for (const inc of incidents) {
         if (inc.resolved) continue;
         const sx = 2 + inc.seatCol * 2;
@@ -542,7 +510,7 @@ export const HDCampusViewport: React.FC<Props> = ({
       }
     }
 
-    onShowToast('附近暫無可互動物件，行近辦公桌、門口或有「!」的學生再按互動鍵。');
+    onShowToast('附近暫無可互動物件，行近辦公桌、課室門或有「!」的學生再按互動鍵。');
   }, [hotspots, playerPos, room, incidents, onSelectIncident, onShowToast]);
 
   useEffect(() => {
@@ -608,14 +576,9 @@ export const HDCampusViewport: React.FC<Props> = ({
     setPendingAction(null);
   };
 
-  const activeClassCode =
-    room === 'CLASSROOM_PASTOR'
-      ? pastorClass
-      : room === 'CLASSROOM_TEACH'
-      ? teachClass
-      : null;
+  const activeClassCode = room.startsWith('CLASS_') ? (room.replace('CLASS_', '') as ClassCode) : null;
+  const isMyAssignedClass = activeClassCode === pastorClass || activeClassCode === teachClass;
 
-  // Map each room to its dedicated HD background plate (including 18 named classrooms!)
   const bgUrl = useMemo(() => {
     if (room === 'STAFFROOM') return './assets/backgrounds/staffroom.png';
     if (room === 'CORRIDOR_1F') return './assets/backgrounds/corridor_1f.png';
@@ -628,12 +591,10 @@ export const HDCampusViewport: React.FC<Props> = ({
     return './assets/backgrounds/classroom.png';
   }, [room, activeClassCode]);
 
-  // Calibrated 2.5D character scale matching room furniture & doors
-  // Perspective scale increases gently as characters move closer to bottom of screen
-  const depthScale = 0.86 + (playerPos.y / GRID_ROWS) * 0.24;
-  const baseCharacterHeight =
-    room === 'CLASSROOM_PASTOR' || room === 'CLASSROOM_TEACH' ? 68 : 64;
-  const playerHeightPx = Math.round(baseCharacterHeight * depthScale);
+  // Responsive percentage-based character sizing so characters always match the room's furniture/chairs at any screen size!
+  const depthScale = 0.88 + (playerPos.y / GRID_ROWS) * 0.25;
+  const baseHeightPct = room.startsWith('CLASS_') ? 21 : 19;
+  const playerHeightPct = (baseHeightPct * depthScale).toFixed(1);
 
   const isBackFacing = facing === 'UP';
   const frameNum = walkFrame === 0 ? 1 : 2;
@@ -648,27 +609,53 @@ export const HDCampusViewport: React.FC<Props> = ({
 
   const flipPlayerHorizontal = facing === 'LEFT';
 
-  const classStudents = useMemo(
-    () => (activeClassCode ? students.filter((s) => s.className === activeClassCode) : []),
-    [activeClassCode, students]
-  );
+  // Generate display students for any of the 18 classrooms (real roster for assigned classes, generic classmates for other 16 rooms)
+  const displayStudents = useMemo(() => {
+    if (!activeClassCode) return [];
+    const existing = students.filter((s) => s.className === activeClassCode);
+    if (existing.length > 0) return existing;
+
+    const filler: StudentProfile[] = [];
+    for (let i = 0; i < 15; i++) {
+      filler.push({
+        id: `guest_${activeClassCode}_${i}`,
+        nameZh: `${activeClassCode}同學`,
+        gender: i % 2 === 0 ? 'MALE' : 'FEMALE',
+        className: activeClassCode,
+        seatRow: Math.floor(i / 5),
+        seatCol: i % 5,
+        rapport: 0,
+        lastInteractedDay: 0,
+        missingHomeworkIds: [],
+        detentionScheduled: false,
+        rememberedEvents: [],
+      });
+    }
+    return filler;
+  }, [activeClassCode, students]);
 
   const floorBanner =
     room === 'STAFFROOM'
       ? '2/F 左翼・教員室 (中央辦公桌｜左茶水零食吧｜右書櫃及出口)'
       : room === 'CORRIDOR_2F'
-      ? '2/F 走廊 (左：教員室｜中：上下樓梯｜右：3A–4C 對門課室)'
+      ? '2/F 走廊 (左：教員室｜中：上下樓梯｜右：3A–3C / 4A–4C 對門課室)'
       : room === 'CORRIDOR_1F'
       ? '1/F 三岔走廊 (北：校務處及校長室｜東：1A–1C / 2A–2C 對門課室｜南：上下樓梯)'
       : room === 'CORRIDOR_3F'
-      ? '3/F 頂層走廊 (5A–6C 對門課室｜樓梯只落 2/F)'
+      ? '3/F 頂層走廊 (5A–5C / 6A–6C 對門課室｜樓梯只落 2/F)'
       : room === 'SCHOOL_OFFICE'
       ? '1/F 北翼・校務處 (General Office)'
       : room === 'PRINCIPAL_OFFICE'
       ? '1/F 北翼・校長及副校長室 (雙辦公桌格局)'
       : room === 'GROUND_FLOOR'
       ? 'G/F 地下・操場及飯堂（中央樓梯只上 1/F）'
-      : `${activeClassCode} 課室（右門格局｜學生面向下方，你背對鏡頭面向學生）`;
+      : `${activeClassCode} 課室${
+          activeClassCode === pastorClass
+            ? '（你的班主任兼任教班）'
+            : activeClassCode === teachClass
+            ? '（你的任教班）'
+            : '（其他班別課室）'
+        }`;
 
   return (
     <div
@@ -684,8 +671,8 @@ export const HDCampusViewport: React.FC<Props> = ({
     >
       <div
         style={{
-          background: 'rgba(15, 23, 42, 0.92)',
-          padding: '8px 14px',
+          background: 'rgba(15, 23, 42, 0.94)',
+          padding: '7px 14px',
           borderBottom: '1px solid #334155',
           display: 'flex',
           justifyContent: 'space-between',
@@ -696,10 +683,11 @@ export const HDCampusViewport: React.FC<Props> = ({
       >
         <div style={{ fontWeight: 700, fontSize: 13, color: '#2dd4bf' }}>{floorBanner}</div>
         <div style={{ fontSize: 11, color: '#94a3b8' }}>
-          點擊地面自動行過去｜WASD / 左下角方向鍵移動
+          點擊地面或課室門移動｜WASD / 左下角方向鍵
         </div>
       </div>
 
+      {/* Properly scaled 16:9 viewport container (objectFit: contain so full room is visible without zoom-cropping) */}
       <div
         ref={containerRef}
         onClick={handleSceneClick}
@@ -707,10 +695,11 @@ export const HDCampusViewport: React.FC<Props> = ({
           position: 'relative',
           width: '100%',
           aspectRatio: '16 / 9',
-          maxHeight: '64vh',
+          maxHeight: '58vh',
+          margin: '0 auto',
           cursor: 'pointer',
           overflow: 'hidden',
-          background: '#0f172a',
+          background: '#090d16',
         }}
       >
         <img
@@ -720,7 +709,7 @@ export const HDCampusViewport: React.FC<Props> = ({
           style={{
             width: '100%',
             height: '100%',
-            objectFit: 'cover',
+            objectFit: 'fill',
             display: 'block',
           }}
         />
@@ -741,15 +730,15 @@ export const HDCampusViewport: React.FC<Props> = ({
                 left: `${leftPct}%`,
                 top: `${topPct}%`,
                 transform: 'translate(-50%, -50%)',
-                background: 'rgba(15, 23, 42, 0.85)',
+                background: 'rgba(15, 23, 42, 0.86)',
                 border: `1.5px solid ${hs.accent ?? '#2dd4bf'}`,
                 color: '#f8fafc',
-                padding: '3px 8px',
-                borderRadius: 6,
+                padding: '2px 7px',
+                borderRadius: 5,
                 fontSize: 11,
                 fontWeight: 700,
                 whiteSpace: 'nowrap',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.55)',
                 zIndex: 8,
               }}
             >
@@ -777,24 +766,27 @@ export const HDCampusViewport: React.FC<Props> = ({
           />
         )}
 
-        {/* Staffroom Colleague Sprites (calibrated scale matching desks) */}
+        {/* Staffroom Colleagues (percentage height = 17.5% of room height, matching desk chairs) */}
         {room === 'STAFFROOM' && (
           <>
             <div
               style={{
                 position: 'absolute',
                 left: '27%',
-                top: '33%',
+                top: '34%',
+                height: '17.5%',
                 transform: 'translate(-50%, -50%)',
                 zIndex: 12,
-                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
               }}
             >
               <img
                 src="./assets/sprites/staff_female_1_front.png"
                 alt="陳老師"
                 draggable={false}
-                style={{ height: 56, width: 'auto', display: 'block', margin: '0 auto' }}
+                style={{ height: '100%', width: 'auto', display: 'block' }}
               />
               <span style={tagPillStyle}>陳老師</span>
             </div>
@@ -802,72 +794,83 @@ export const HDCampusViewport: React.FC<Props> = ({
               style={{
                 position: 'absolute',
                 left: '72%',
-                top: '33%',
+                top: '34%',
+                height: '17.5%',
                 transform: 'translate(-50%, -50%)',
                 zIndex: 12,
-                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
               }}
             >
               <img
                 src="./assets/sprites/staff_male_1_front.png"
                 alt="張科主任"
                 draggable={false}
-                style={{ height: 56, width: 'auto', display: 'block', margin: '0 auto' }}
+                style={{ height: '100%', width: 'auto', display: 'block' }}
               />
               <span style={tagPillStyle}>張科主任</span>
             </div>
           </>
         )}
 
-        {/* Principal & Vice Principal Sprites at their 2 executive desks */}
+        {/* Principal & Vice Principal at their 2 executive desks */}
         {room === 'PRINCIPAL_OFFICE' && (
           <>
             <div
               style={{
                 position: 'absolute',
-                left: '34%',
-                top: '35%',
+                left: '30%',
+                top: '38%',
+                height: '18%',
                 transform: 'translate(-50%, -50%)',
                 zIndex: 12,
-                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
               }}
             >
               <img
                 src="./assets/sprites/staff_male_2_front.png"
                 alt="校長"
                 draggable={false}
-                style={{ height: 58, width: 'auto', display: 'block', margin: '0 auto' }}
+                style={{ height: '100%', width: 'auto', display: 'block' }}
               />
               <span style={tagPillStyle}>校長</span>
             </div>
             <div
               style={{
                 position: 'absolute',
-                left: '66%',
-                top: '35%',
+                left: '68%',
+                top: '48%',
+                height: '18.5%',
                 transform: 'translate(-50%, -50%)',
                 zIndex: 12,
-                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
               }}
             >
               <img
                 src="./assets/sprites/staff_male_1_front.png"
                 alt="周副校長"
                 draggable={false}
-                style={{ height: 58, width: 'auto', display: 'block', margin: '0 auto' }}
+                style={{ height: '100%', width: 'auto', display: 'block' }}
               />
               <span style={tagPillStyle}>周副校長</span>
             </div>
           </>
         )}
 
-        {/* Classroom Students (facing bottom of screen, calibrated scale matching student desks) */}
-        {(room === 'CLASSROOM_PASTOR' || room === 'CLASSROOM_TEACH') &&
-          classStudents.map((stu) => {
-            const leftPct = ((2.25 + stu.seatCol * 1.8) / GRID_COLS) * 100;
-            const topPct = ((3.5 + stu.seatRow * 1.8) / GRID_ROWS) * 100;
-            const rowScale = 0.88 + stu.seatRow * 0.08;
-            const inc = incidents.find((i) => !i.resolved && i.studentId === stu.id);
+        {/* Classroom Students (15.5%–18.5% height matching the wooden student desks & chairs!) */}
+        {room.startsWith('CLASS_') &&
+          displayStudents.map((stu) => {
+            const leftPct = ((2.1 + stu.seatCol * 1.82) / GRID_COLS) * 100;
+            const topPct = ((3.7 + stu.seatRow * 1.85) / GRID_ROWS) * 100;
+            const rowHeightPct = (15.5 + stu.seatRow * 1.5).toFixed(1);
+            const inc = isMyAssignedClass
+              ? incidents.find((i) => !i.resolved && i.studentId === stu.id)
+              : undefined;
             const spriteSrc =
               stu.gender === 'MALE'
                 ? './assets/sprites/student_male_front_1.png'
@@ -897,16 +900,18 @@ export const HDCampusViewport: React.FC<Props> = ({
                   position: 'absolute',
                   left: `${leftPct}%`,
                   top: `${topPct}%`,
+                  height: `${rowHeightPct}%`,
                   transform: 'translate(-50%, -50%)',
                   zIndex: 10 + stu.seatRow * 3,
-                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
                   cursor: 'pointer',
                 }}
               >
                 {inc && (
                   <div
                     style={{
-                      display: 'inline-block',
                       background: '#fef9c3',
                       color: '#92400e',
                       border: '2px solid #1e293b',
@@ -926,10 +931,10 @@ export const HDCampusViewport: React.FC<Props> = ({
                   alt={stu.nameZh}
                   draggable={false}
                   style={{
-                    height: Math.round(52 * rowScale),
+                    height: '100%',
                     width: 'auto',
                     display: 'block',
-                    margin: '0 auto',
+                    filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.5))',
                   }}
                 />
                 <span style={tagPillStyle}>{stu.nameZh}</span>
@@ -937,17 +942,20 @@ export const HDCampusViewport: React.FC<Props> = ({
             );
           })}
 
-        {/* Player Character Sprite (calibrated 2.5D scale + front/back view) */}
+        {/* Player Character Sprite (percentage-scaled to match desks & doorways!) */}
         <div
           style={{
             position: 'absolute',
             left: `${((playerPos.x + 0.5) / GRID_COLS) * 100}%`,
             top: `${((playerPos.y + 0.45) / GRID_ROWS) * 100}%`,
+            height: `${playerHeightPct}%`,
             transform: 'translate(-50%, -50%)',
             transition: 'left 0.14s linear, top 0.14s linear',
             zIndex: 11 + playerPos.y * 2,
             pointerEvents: 'none',
-            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
           }}
         >
           <div
@@ -959,6 +967,7 @@ export const HDCampusViewport: React.FC<Props> = ({
               padding: '1px 6px',
               borderRadius: 999,
               marginBottom: 1,
+              whiteSpace: 'nowrap',
               boxShadow: '0 1px 4px rgba(0,0,0,0.6)',
             }}
           >
@@ -969,14 +978,13 @@ export const HDCampusViewport: React.FC<Props> = ({
             alt="Player"
             draggable={false}
             style={{
-              height: playerHeightPx,
+              height: '100%',
               width: 'auto',
               display: 'block',
-              margin: '0 auto',
               transform: `${flipPlayerHorizontal ? 'scaleX(-1)' : 'scaleX(1)'} ${
                 playerPosture === 'EXHAUSTED' ? 'translateY(2px)' : ''
               }`,
-              filter: 'drop-shadow(0 3px 4px rgba(0,0,0,0.55))',
+              filter: 'drop-shadow(0 3px 4px rgba(0,0,0,0.6))',
             }}
           />
         </div>
@@ -986,12 +994,12 @@ export const HDCampusViewport: React.FC<Props> = ({
           onClick={(e) => e.stopPropagation()}
           style={{
             position: 'absolute',
-            left: 14,
-            bottom: 14,
+            left: 12,
+            bottom: 12,
             zIndex: 30,
             display: 'grid',
-            gridTemplateColumns: 'repeat(3, 42px)',
-            gridTemplateRows: 'repeat(3, 42px)',
+            gridTemplateColumns: 'repeat(3, 40px)',
+            gridTemplateRows: 'repeat(3, 40px)',
             gap: 4,
             touchAction: 'none',
           }}
@@ -1004,7 +1012,7 @@ export const HDCampusViewport: React.FC<Props> = ({
             onClick={triggerNearbyInteraction}
             style={{
               ...dpadBtnStyle,
-              background: 'rgba(13, 148, 136, 0.9)',
+              background: 'rgba(13, 148, 136, 0.92)',
               borderColor: '#5eead4',
               fontSize: 11,
             }}
@@ -1023,7 +1031,7 @@ export const HDCampusViewport: React.FC<Props> = ({
         <div
           style={{
             background: '#064e3b',
-            padding: '8px 14px',
+            padding: '7px 14px',
             fontSize: 12,
             display: 'flex',
             justifyContent: 'space-between',
@@ -1042,22 +1050,23 @@ export const HDCampusViewport: React.FC<Props> = ({
 
 const tagPillStyle: React.CSSProperties = {
   display: 'inline-block',
-  background: 'rgba(15, 23, 42, 0.85)',
+  background: 'rgba(15, 23, 42, 0.88)',
   color: '#f8fafc',
   fontSize: 10,
-  padding: '1px 5px',
+  padding: '0px 5px',
   borderRadius: 4,
   marginTop: 1,
+  whiteSpace: 'nowrap',
 };
 
 const dpadBtnStyle: React.CSSProperties = {
-  width: 42,
-  height: 42,
+  width: 40,
+  height: 40,
   background: 'rgba(15, 23, 42, 0.82)',
   color: '#f8fafc',
   border: '1.5px solid rgba(148, 163, 184, 0.55)',
   borderRadius: 8,
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 700,
   cursor: 'pointer',
   backdropFilter: 'blur(4px)',

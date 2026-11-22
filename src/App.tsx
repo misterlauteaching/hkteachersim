@@ -325,8 +325,8 @@ export default function App() {
                     ['PRINCIPAL_OFFICE', '1/F 校長及副校長室'],
                     ['CORRIDOR_3F', '3/F 走廊'],
                     ['GROUND_FLOOR', 'G/F 飯堂/操場'],
-                    ['CLASSROOM_PASTOR', `${state.pastorClass} 課室`],
-                    ['CLASSROOM_TEACH', `${state.teachClass} 課室`],
+                    [`CLASS_${state.pastorClass}` as RoomId, `${state.pastorClass} 課室`],
+                    [`CLASS_${state.teachClass}` as RoomId, `${state.teachClass} 課室`],
                   ] as [RoomId, string][]
                 ).map(([rid, label]) => (
                   <button

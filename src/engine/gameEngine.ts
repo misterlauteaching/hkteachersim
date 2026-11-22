@@ -218,8 +218,8 @@ export function enterRoom(state: GameState, targetRoom: RoomId): GameState {
     clockMinutes: Math.min(1140, state.clockMinutes + 2),
   };
 
-  if (targetRoom === 'CLASSROOM_PASTOR' || targetRoom === 'CLASSROOM_TEACH') {
-    const cls = targetRoom === 'CLASSROOM_PASTOR' ? state.pastorClass : state.teachClass;
+  if (targetRoom.startsWith('CLASS_')) {
+    const cls = targetRoom.replace('CLASS_', '') as ClassCode;
     const currentSlot = state.daySchedule.find(
       (s) =>
         s.className === cls &&
