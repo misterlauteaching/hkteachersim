@@ -15,16 +15,16 @@ import {
   getEnergyBodyCue,
   getStressDiegeticCue,
 } from './engine/presenter';
-import { simulateRoutineDayMacro, simulateWorkMicro } from './engine/simulation';
+import { simulateRoutineDayMacro } from './engine/simulation';
 import { defaultSaveAdapter } from './save/saveAdapter';
-import { ClassroomIncident, GameState, PolicyStance, RoomId } from './types/game';
+import { ClassroomIncident, GameState, PlayerGender, PolicyStance, RoomId } from './types/game';
 import { DeskHubModal } from './ui/DeskHubModal';
-import { CampusViewport } from './world/CampusViewport';
+import { HDCampusViewport } from './world/HDCampusViewport';
 
 const DAY_NAMES = ['', '星期一', '星期二', '星期三', '星期四', '星期五'];
 
 export default function App() {
-  const [state, setState] = useState<GameState>(() => createNewGameState());
+  const [state, setState] = useState<GameState>(() => createNewGameState('MALE'));
   const [bannerMsg, setBannerMsg] = useState<string | null>(null);
   const [selectedStance, setSelectedStance] = useState<PolicyStance>('BALANCED');
   const [deskModalOpen, setDeskModalOpen] = useState<boolean>(false);
@@ -45,9 +45,12 @@ export default function App() {
 
   const commitState = (next: GameState, autosave = false) => {
     setState(next);
-    if (autosave) {
-      defaultSaveAdapter.save(next);
-    }
+    if (autosave) defaultSaveAdapter.save(next);
+  };
+
+  const handleSelectGender = (gender: PlayerGender) => {
+    const fresh = createNewGameState(gender);
+    commitState(fresh, true);
   };
 
   const energyCue = getEnergyBodyCue(state.meters);
@@ -120,6 +123,11 @@ export default function App() {
       .filter(Boolean)
       .join('、');
 
+  const portraitSrc =
+    state.playerGender === 'MALE'
+      ? './assets/sprites/player_male_portrait.png'
+      : './assets/sprites/player_female_portrait.png';
+
   return (
     <div
       style={{
@@ -129,77 +137,123 @@ export default function App() {
         boxShadow: stressCue.dangerVignette ? 'inset 0 0 60px rgba(220,38,38,0.65)' : 'none',
       }}
     >
+      {/* Top Status Header */}
       <header
         style={{
           background: '#1e293b',
           borderBottom: '1px solid #334155',
-          padding: '10px 18px',
+          padding: '8px 16px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          gap: 12,
+          gap: 10,
+          flexWrap: 'wrap',
         }}
       >
-        <div>
-          <span style={{ fontWeight: 700, color: '#2dd4bf', marginRight: 12 }}>
-            第 {state.week} 週・{DAY_NAMES[state.dayOfWeek]}
-          </span>
-          <span style={{ fontWeight: 700, fontSize: 18 }}>
-            {formatClockZh(state.clockMinutes)}
-          </span>
-          <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 8 }}>
-            ({state.curfewTriggered ? '19:00 已鎖門' : `${getClockSpeedMultiplier(state)}x 時鐘`})
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img
+            src={portraitSrc}
+            alt="Teacher Portrait"
+            style={{ width: 34, height: 34, borderRadius: '50%', border: '2px solid #2dd4bf', objectFit: 'cover' }}
+          />
+          <div>
+            <span style={{ fontWeight: 700, color: '#2dd4bf', marginRight: 10 }}>
+              第 {state.week} 週・{DAY_NAMES[state.dayOfWeek]}
+            </span>
+            <span style={{ fontWeight: 700, fontSize: 17 }}>{formatClockZh(state.clockMinutes)}</span>
+            <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 6 }}>
+              ({state.curfewTriggered ? '19:00 已鎖門' : `${getClockSpeedMultiplier(state)}x`})
+            </span>
+          </div>
         </div>
 
-        <div style={{ fontSize: 13, color: '#e2e8f0' }}>
-          目前時段：<strong>{currentSlot ? currentSlot.labelZh : '自由／加班時段'}</strong>
+        <div style={{ fontSize: 12, color: '#e2e8f0' }}>
+          任教：<strong>{state.pastorClass} (班主任)</strong> / <strong>{state.teachClass}</strong> ｜ 目前：
+          <strong>{currentSlot ? currentSlot.labelZh : '放學／加班時段'}</strong>
         </div>
 
-        <div style={{ display: 'flex', gap: 14, fontSize: 12 }}>
+        <div style={{ display: 'flex', gap: 10, fontSize: 12, alignItems: 'center' }}>
           <span>體力：{energyCue.labelZh}</span>
           <span>狀態：{stressCue.labelZh}</span>
+          <button
+            onClick={() => {
+              defaultSaveAdapter.clear();
+              commitState(createNewGameState(state.playerGender), true);
+              setBannerMsg('已重新隨機編班並開啟新學年！');
+            }}
+            style={{ background: '#334155', color: '#e2e8f0', border: '1px solid #475569', borderRadius: 5, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}
+          >
+            重開新學年
+          </button>
         </div>
       </header>
 
       {bannerMsg && (
-        <div style={{ background: '#7f1d1d', padding: '8px 18px', fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ background: '#7f1d1d', padding: '7px 16px', fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
           <span>{bannerMsg}</span>
           <button onClick={() => setBannerMsg(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>✕</button>
         </div>
       )}
 
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 380px', gap: 14, padding: 14, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
+      {/* Main Responsive Layout */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: 12, padding: 12, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
           {state.mode === 'WEEK_PLANNING' && (
-            <div style={{ background: '#1e293b', borderRadius: 10, padding: 18, border: '1px solid #334155' }}>
-              <h2 style={{ color: '#2dd4bf', marginBottom: 8 }}>週一晨早・教員室工作規劃 (Week-Planning Mode)</h2>
+            <div style={{ background: '#1e293b', borderRadius: 12, padding: 18, border: '1px solid #334155' }}>
+              <h2 style={{ color: '#2dd4bf', marginBottom: 8 }}>新學年・教師角色與週一晨早規劃</h2>
               <p style={{ fontSize: 13, color: '#cbd5e1', marginBottom: 14 }}>
-                你係新入職中學英文科老師，任教 <strong>4C（兼班主任）</strong> 及 <strong>1B</strong>（全校共 1A–6C 十八班）。
+                本學年隨機編班結果：你獲派擔任 <strong>{state.pastorClass} 班主任兼英文老師</strong>，同時任教 <strong>{state.teachClass} 英文科</strong>。
               </p>
 
-              <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-                <button
-                  onClick={() => {
-                    const started: GameState = { ...state, mode: 'SCHOOL_DAY', clockPaused: false };
-                    commitState(started, true);
-                  }}
-                  style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 16px', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  親身落場開始今日校園生活 (08:00)
-                </button>
+              {/* Male / Female Teacher Avatar Selector */}
+              <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                {(
+                  [
+                    ['MALE', '男老師 (Lau Sir)', './assets/sprites/player_male_portrait.png'],
+                    ['FEMALE', '女老師 (Ms. Cheung)', './assets/sprites/player_female_portrait.png'],
+                  ] as [PlayerGender, string, string][]
+                ).map(([g, label, img]) => (
+                  <button
+                    key={g}
+                    onClick={() => handleSelectGender(g)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 14px',
+                      borderRadius: 10,
+                      background: state.playerGender === g ? '#0f766e' : '#0f172a',
+                      border: state.playerGender === g ? '2px solid #2dd4bf' : '1px solid #334155',
+                      color: '#fff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <img src={img} alt={label} style={{ width: 44, height: 44, borderRadius: '50%' }} />
+                    <div style={{ textAlign: 'left' }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
+                      <div style={{ fontSize: 11, color: '#cbd5e1' }}>Smart Casual 造型</div>
+                    </div>
+                  </button>
+                ))}
               </div>
+
+              <button
+                onClick={() => commitState({ ...state, mode: 'SCHOOL_DAY', clockPaused: false }, true)}
+                style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 18px', fontWeight: 700, fontSize: 14, cursor: 'pointer', marginBottom: 16 }}
+              >
+                進入 2/F 教員室開始今日校園生活 (08:00)
+              </button>
 
               <div style={{ background: '#0f172a', padding: 12, borderRadius: 8, border: '1px solid #334155' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
-                  【戰術快進】模擬常規上課日（結果較隨機，遇危機自動中斷）
+                  【戰術快進】模擬常規上課日（遇危機自動中斷）
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                   {(
                     [
-                      ['ADMIN_FIRST', '保底交差（行政優先）'],
-                      ['STUDENTS_FIRST', '學生為本（課堂優先）'],
-                      ['SELF_PRESERVE', '準時收工（保存體力）'],
+                      ['ADMIN_FIRST', '保底交差'],
+                      ['STUDENTS_FIRST', '學生為本'],
+                      ['SELF_PRESERVE', '準時收工'],
                       ['BALANCED', '平均應付'],
                     ] as [PolicyStance, string][]
                   ).map(([code, label]) => (
@@ -236,27 +290,42 @@ export default function App() {
 
           {state.mode === 'SCHOOL_DAY' && (
             <>
-              <CampusViewport
+              <HDCampusViewport
                 room={state.currentRoom}
+                playerGender={state.playerGender}
+                pastorClass={state.pastorClass}
+                teachClass={state.teachClass}
                 inLesson={state.inLesson}
+                students={state.students}
                 incidents={state.activeIncidents}
                 playerPosture={energyCue.posture}
-                playerSpeedMultiplier={energyCue.speedMultiplier}
                 dangerVignette={stressCue.dangerVignette}
+                onEnterRoom={(rid) => {
+                  setDeskModalOpen(false);
+                  commitState(enterRoom(state, rid));
+                }}
                 onSelectIncident={handleOpenIncident}
-                onOpenDesk={() => setDeskModalOpen(true)}
+                onOpenDeskTasks={() => setDeskModalOpen(true)}
+                onQuickSnackOrCoffee={(kind) => {
+                  commitState(performDeskRecovery(state, kind));
+                  setBannerMsg(kind === 'COFFEE' ? '喺茶水吧沖咗杯熱咖啡，精神返啲！' : '食咗份小食，稍微回氣。');
+                }}
+                onShowToast={(msg) => setBannerMsg(msg)}
               />
 
-              <div style={{ background: '#1e293b', borderRadius: 10, padding: 12, border: '1px solid #334155', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: '#94a3b8' }}>校園移動：</span>
+              {/* Floor Quick-Jump Bar */}
+              <div style={{ background: '#1e293b', borderRadius: 10, padding: 10, border: '1px solid #334155', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: '#94a3b8' }}>樓層導航：</span>
                 {(
                   [
-                    ['STAFFROOM', '教員室辦公桌'],
-                    ['CORRIDOR', '教學樓走廊'],
-                    ['CLASS_4C', '4C 課室 (班主任)'],
-                    ['CLASS_1B', '1B 課室'],
-                    ['DETENTION_ROOM', '16:00 留堂室'],
-                    ['GATE', '學校正門'],
+                    ['STAFFROOM', '2/F 教員室'],
+                    ['CORRIDOR_2F', '2/F 走廊'],
+                    ['CORRIDOR_1F', '1/F 三岔走廊'],
+                    ['SCHOOL_OFFICE', '1/F 校務處/校長室'],
+                    ['CORRIDOR_3F', '3/F 走廊'],
+                    ['GROUND_FLOOR', 'G/F 飯堂/操場'],
+                    ['CLASSROOM_PASTOR', `${state.pastorClass} 課室`],
+                    ['CLASSROOM_TEACH', `${state.teachClass} 課室`],
                   ] as [RoomId, string][]
                 ).map(([rid, label]) => (
                   <button
@@ -270,8 +339,8 @@ export default function App() {
                       color: '#fff',
                       border: 'none',
                       borderRadius: 6,
-                      padding: '6px 10px',
-                      fontSize: 12,
+                      padding: '5px 9px',
+                      fontSize: 11,
                       cursor: 'pointer',
                     }}
                   >
@@ -291,9 +360,9 @@ export default function App() {
                       color: '#fff',
                       border: 'none',
                       borderRadius: 6,
-                      padding: '6px 12px',
+                      padding: '5px 11px',
                       fontWeight: 700,
-                      fontSize: 12,
+                      fontSize: 11,
                       cursor: 'pointer',
                     }}
                   >
@@ -301,13 +370,6 @@ export default function App() {
                   </button>
                 )}
               </div>
-
-              {state.inLesson && (
-                <div style={{ background: '#064e3b', borderRadius: 8, padding: 10, fontSize: 13 }}>
-                  <strong>自動授課進度（{state.activeLessonClass}）：</strong>
-                  {Math.round(state.lessonProgress)}% — 對話結束後自動繼續教學，無需行返講台。
-                </div>
-              )}
             </>
           )}
 
@@ -329,10 +391,11 @@ export default function App() {
           )}
         </div>
 
-        <aside style={{ background: '#1e293b', borderRadius: 10, padding: 14, border: '1px solid #334155', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Right Status & Ledger Sidebar */}
+        <aside style={{ background: '#1e293b', borderRadius: 12, padding: 12, border: '1px solid #334155', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24', marginBottom: 6 }}>
-              未完成積壓盤 ({state.leftovers.length} / 3 格 — 第4項會逼爆最舊一項)
+              未完成積壓盤 ({state.leftovers.length} / 3 格)
             </div>
             {state.leftovers.length === 0 ? (
               <div style={{ fontSize: 12, color: '#94a3b8' }}>暫無積壓事項。</div>
@@ -363,37 +426,14 @@ export default function App() {
                 <div key={hw.id} style={{ background: '#0f172a', padding: 8, borderRadius: 6, marginBottom: 6, fontSize: 12 }}>
                   <div style={{ fontWeight: 700 }}>{hw.title}</div>
                   <div style={{ color: '#cbd5e1', marginTop: 2 }}>
-                    狀態：{hw.deliveredToDesk ? `已收 ${hw.submittedCount}/${hw.totalStudents} 份（已改 ${hw.markedCount} 份）` : '08:20 早會後由班長送上桌面'}
+                    {hw.deliveredToDesk ? `已收 ${hw.submittedCount}/${hw.totalStudents} 份（已改 ${hw.markedCount} 份）` : '08:20 早會後由班長送上中央辦公桌'}
                   </div>
                   {missingNames && (
-                    <div style={{ color: '#fbbf24', marginTop: 2, fontSize: 11 }}>
-                      欠交：{missingNames}
-                    </div>
-                  )}
-                  {hw.deliveredToDesk && hw.markedCount < hw.submittedCount && !state.curfewTriggered && (
-                    <button
-                      onClick={() => commitState(simulateWorkMicro(state, 'MARKING', hw.id))}
-                      style={{ marginTop: 6, background: '#475569', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}
-                    >
-                      快速批改（省時但質素較隨機）
-                    </button>
+                    <div style={{ color: '#fbbf24', marginTop: 2, fontSize: 11 }}>欠交：{missingNames}</div>
                   )}
                 </div>
               );
             })}
-          </div>
-
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#a7f3d0', marginBottom: 6 }}>
-              辦公桌小休與恢復（19:00 鎖門後停用）
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'NAP_10'))} style={recBtnStyle}>小睡10分</button>
-              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'NAP_20'))} style={recBtnStyle}>小睡20分</button>
-              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'COFFEE'))} style={recBtnStyle}>沖杯咖啡</button>
-              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'SNACK'))} style={recBtnStyle}>食零食 ({state.snacksRemainingToday})</button>
-              <button disabled={state.curfewTriggered} onClick={() => commitState(performDeskRecovery(state, 'CHAT'))} style={recBtnStyle}>同隔離位傾偈</button>
-            </div>
           </div>
 
           <div>
@@ -410,12 +450,13 @@ export default function App() {
               ))}
             </ul>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
-              個人特質印象：{describeTraitQualitatively(state.traits)[0]}
+              個人印象：{describeTraitQualitatively(state.traits)}
             </div>
           </div>
         </aside>
       </div>
 
+      {/* Centered Floating Teacher's Tasks Pop-Up */}
       <DeskHubModal
         open={deskModalOpen}
         curfewTriggered={state.curfewTriggered}
@@ -428,12 +469,20 @@ export default function App() {
         onClose={() => setDeskModalOpen(false)}
         onRecover={(kind) => commitState(performDeskRecovery(state, kind))}
         onResolveLeftover={(id) => commitState(resolveLeftover(state, id))}
-        onSimMarking={(hwId) => commitState(simulateWorkMicro(state, 'MARKING', hwId))}
+        onSimMarking={(hwId) =>
+          commitState({
+            ...state,
+            homeworkLedger: state.homeworkLedger.map((h) =>
+              h.id === hwId ? { ...h, markedCount: h.submittedCount } : h
+            ),
+          })
+        }
       />
 
+      {/* Student Incident Dialogue Modal (opened by walking up to "!" bubble student) */}
       {state.activeScene && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.78)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 24, zIndex: 50 }}>
-          <div style={{ width: '100%', maxWidth: 680, background: '#0f172a', border: '3px solid #2dd4bf', borderRadius: 12, padding: 18 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.78)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, zIndex: 55 }}>
+          <div style={{ width: '100%', maxWidth: 620, background: '#0f172a', border: '3px solid #2dd4bf', borderRadius: 12, padding: 18 }}>
             <div style={{ fontSize: 12, color: '#2dd4bf', fontWeight: 700, marginBottom: 4 }}>
               {state.activeScene.titleZh}（時間暫停）
             </div>
@@ -456,13 +505,3 @@ export default function App() {
     </div>
   );
 }
-
-const recBtnStyle: React.CSSProperties = {
-  fontSize: 11,
-  padding: '6px 9px',
-  borderRadius: 5,
-  border: '1px solid #475569',
-  background: '#334155',
-  color: '#fff',
-  cursor: 'pointer',
-};

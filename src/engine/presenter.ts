@@ -1,5 +1,3 @@
-// Strict Number-to-Artifact Sanitizer — Zero raw stats ever reach React UI
-
 import { AttitudeBand, GameState, HiddenMeters, HiddenTraits } from '../types/game';
 
 export function getAttitudeBand(score: number): AttitudeBand {
@@ -27,67 +25,33 @@ export function getEnergyBodyCue(meters: HiddenMeters): {
   speedMultiplier: number;
 } {
   if (meters.energy <= 5) {
-    return {
-      labelZh: '腳步沉重・眼皮打架',
-      posture: 'EXHAUSTED',
-      speedMultiplier: 0.72,
-    };
+    return { labelZh: '腳步沉重・眼皮打架', posture: 'EXHAUSTED', speedMultiplier: 0.72 };
   }
   if (meters.energy <= 11) {
-    return {
-      labelZh: '略顯疲態・想飲杯咖啡',
-      posture: 'SLOUCH',
-      speedMultiplier: 0.9,
-    };
+    return { labelZh: '略顯疲態・想飲杯咖啡', posture: 'SLOUCH', speedMultiplier: 0.9 };
   }
-  return {
-    labelZh: '精神尚可・步伐穩健',
-    posture: 'UPRIGHT',
-    speedMultiplier: 1.0,
-  };
+  return { labelZh: '精神尚可・步伐穩健', posture: 'UPRIGHT', speedMultiplier: 1.0 };
 }
 
 export function getStressDiegeticCue(meters: HiddenMeters): {
   labelZh: string;
   dangerVignette: boolean;
-  deskClutterLevel: 1 | 2 | 3;
 } {
   if (meters.stress >= 45) {
-    return {
-      labelZh: '心跳加速・太陽穴抽痛（臨界）',
-      dangerVignette: true,
-      deskClutterLevel: 3,
-    };
+    return { labelZh: '心跳加速・太陽穴抽痛（臨界）', dangerVignette: true };
   }
   if (meters.stress >= 30) {
-    return {
-      labelZh: '枱面文件堆積・精神繃緊',
-      dangerVignette: false,
-      deskClutterLevel: 2,
-    };
+    return { labelZh: '枱面文件堆積・精神繃緊', dangerVignette: false };
   }
-  return {
-    labelZh: '呼吸平穩・尚算可控',
-    dangerVignette: false,
-    deskClutterLevel: 1,
-  };
+  return { labelZh: '呼吸平穩・尚算可控', dangerVignette: false };
 }
 
-export function getChannelBandSummary(state: GameState): {
-  students: string;
-  parents: string;
-  colleagues: string;
-  management: string;
-} {
-  const avgStu =
-    state.students.reduce((acc, s) => acc + s.rapport, 0) / Math.max(1, state.students.length);
+export function getChannelBandSummary(state: GameState) {
+  const avgStu = state.students.reduce((acc, s) => acc + s.rapport, 0) / Math.max(1, state.students.length);
   const fellow = state.staff.filter((s) => s.channel === 'FELLOW_TEACHERS');
   const mgmt = state.staff.filter((s) => s.channel === 'MANAGEMENT');
-
-  const avgFellow =
-    fellow.reduce((acc, s) => acc + s.trust, 0) / Math.max(1, fellow.length);
-  const avgMgmt =
-    mgmt.reduce((acc, s) => acc + s.trust, 0) / Math.max(1, mgmt.length);
+  const avgFellow = fellow.reduce((acc, s) => acc + s.trust, 0) / Math.max(1, fellow.length);
+  const avgMgmt = mgmt.reduce((acc, s) => acc + s.trust, 0) / Math.max(1, mgmt.length);
 
   return {
     students: getAttitudeLabelZh(getAttitudeBand(avgStu)),
@@ -97,31 +61,15 @@ export function getChannelBandSummary(state: GameState): {
   };
 }
 
-export function describeTraitQualitatively(traits: HiddenTraits): string[] {
-  const notes: string[] = [];
-  notes.push(
-    traits.subjectKnowledge >= 7
-      ? '英文科底子紮實，講解文法得心應手'
-      : '備課仍需花時間翻查教材與評分準則'
-  );
-  notes.push(
-    traits.patience >= 7
-      ? '對學生有耐性，不易被課室突發狀況激怒'
-      : '面對重複犯錯時容易心浮氣躁'
-  );
-  notes.push(
-    traits.resilience >= 7
-      ? '抗壓力不俗，收工後較快平復情緒'
-      : '被上司或家長責難後容易耿耿於懷'
-  );
-  return notes;
+export function describeTraitQualitatively(traits: HiddenTraits): string {
+  return traits.subjectKnowledge >= 7
+    ? '英文科底子紮實，講解文法得心應手'
+    : '備課仍需花時間翻查教材與評分準則';
 }
 
 export function formatClockZh(minutesFromMidnight: number): string {
   const total = Math.floor(minutesFromMidnight);
-  const hh = Math.floor(total / 60)
-    .toString()
-    .padStart(2, '0');
+  const hh = Math.floor(total / 60).toString().padStart(2, '0');
   const mm = (total % 60).toString().padStart(2, '0');
   return `${hh}:${mm}`;
 }

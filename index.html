@@ -2,17 +2,21 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>香港中學老師模擬器 — V1 Backbone</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>香港中學老師模擬器 — HD 2.5D Build</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body {
+      html, body, #root {
+        width: 100%;
+        height: 100%;
         font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", "PingFang HK", "Microsoft JhengHei", sans-serif;
         background: #0f172a;
         color: #f8fafc;
         overflow: hidden;
         user-select: none;
+        -webkit-user-select: none;
       }
+      button:disabled { opacity: 0.45; cursor: not-allowed !important; }
     </style>
   </head>
   <body>

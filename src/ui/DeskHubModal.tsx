@@ -1,4 +1,4 @@
-// Visual Teacher's Desk Hub Modal matching the illustrated Desk Hub tiles
+// Centered Floating Teacher's Tasks Pop-Up (opens when approaching & interacting with central desk)
 
 import React from 'react';
 import { DeskPostIt, HomeworkAssignment, LeftoverItem } from '../types/game';
@@ -39,51 +39,51 @@ export const DeskHubModal: React.FC<Props> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(2, 6, 23, 0.78)',
+        background: 'rgba(2, 6, 23, 0.76)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: 18,
-        zIndex: 45,
+        zIndex: 50,
       }}
     >
       <div
         style={{
           width: '100%',
-          maxWidth: 640,
+          maxWidth: 660,
           background: '#1e293b',
           border: '2px solid #2dd4bf',
           borderRadius: 14,
-          padding: 18,
-          maxHeight: '88vh',
+          padding: 20,
+          maxHeight: '86vh',
           overflowY: 'auto',
+          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.75)',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div>
-            <h3 style={{ color: '#2dd4bf', fontSize: 16 }}>辦公桌工作台 (Teacher's Desk Hub)</h3>
-            <div style={{ fontSize: 12, color: '#cbd5e1' }}>體力狀態：{energyCueLabel}</div>
+            <h3 style={{ color: '#2dd4bf', fontSize: 17 }}>教師工作台・中央辦公桌 (Teacher's Tasks)</h3>
+            <div style={{ fontSize: 12, color: '#cbd5e1', marginTop: 2 }}>體力狀態：{energyCueLabel}</div>
           </div>
           <button
             onClick={onClose}
-            style={{ background: '#334155', color: '#fff', border: '1px solid #475569', borderRadius: 6, padding: '5px 12px', cursor: 'pointer' }}
+            style={{ background: '#334155', color: '#fff', border: '1px solid #475569', borderRadius: 6, padding: '6px 14px', fontWeight: 700, cursor: 'pointer' }}
           >
-            關閉
+            離開辦公桌
           </button>
         </div>
 
         {curfewTriggered ? (
           <div style={{ background: '#7f1d1d', padding: 14, borderRadius: 8, fontSize: 13, color: '#fecaca' }}>
-            校工已經準備鎖門（19:00），今日唔可以再做嘢喇，請前往校門離校。
+            校工已經準備鎖門（19:00），今日唔可以再做嘢喇，請前往 G/F 校門離校。
           </div>
         ) : (
           <>
-            {/* 6 Visual Tile Cards matching Desk Hub */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
               <div style={tileCardStyle}>
                 <div style={{ fontWeight: 700, color: '#38bdf8', fontSize: 13 }}>功課批改 Ledger</div>
                 <div style={{ fontSize: 11, color: '#cbd5e1', marginTop: 4 }}>
-                  共 {homeworkLedger.length} 項英文功課紀錄
+                  {homeworkLedger.length} 項英文功課紀錄
                 </div>
               </div>
               <div style={tileCardStyle}>
@@ -93,7 +93,7 @@ export const DeskHubModal: React.FC<Props> = ({
                 </div>
               </div>
               <div style={tileCardStyle}>
-                <div style={{ fontWeight: 700, color: '#a7f3d0', fontSize: 13 }}>小休 Nap</div>
+                <div style={{ fontWeight: 700, color: '#a7f3d0', fontSize: 13 }}>趴低小休 Nap</div>
                 <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
                   <button onClick={() => onRecover('NAP_10')} style={miniBtnStyle}>10分</button>
                   <button onClick={() => onRecover('NAP_20')} style={miniBtnStyle}>20分</button>
@@ -114,14 +114,13 @@ export const DeskHubModal: React.FC<Props> = ({
                 </button>
               </div>
               <div style={tileCardStyle}>
-                <div style={{ fontWeight: 700, color: '#c084fc', fontSize: 13 }}>便利貼／傾偈</div>
+                <div style={{ fontWeight: 700, color: '#c084fc', fontSize: 13 }}>同隔離位傾偈</div>
                 <button onClick={() => onRecover('CHAT')} style={{ ...miniBtnStyle, marginTop: 6 }}>
-                  同隔離位傾偈
+                  打聽教員室風聲
                 </button>
               </div>
             </div>
 
-            {/* Homework Detail List */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#38bdf8', marginBottom: 6 }}>英文功課及欠交名單</div>
               {homeworkLedger.map((hw) => {
@@ -143,7 +142,6 @@ export const DeskHubModal: React.FC<Props> = ({
               })}
             </div>
 
-            {/* Leftovers & Post-Its */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div style={{ background: '#0f172a', padding: 10, borderRadius: 8, fontSize: 12 }}>
                 <div style={{ fontWeight: 700, color: '#fbbf24', marginBottom: 6 }}>積壓盤 ({leftovers.length}/3)</div>

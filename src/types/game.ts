@@ -7,6 +7,8 @@ export type GameMode =
   | 'REVIEW'
   | 'HOLIDAY';
 
+export type PlayerGender = 'MALE' | 'FEMALE';
+
 export type DomainType =
   | 'CURRICULUM'
   | 'ADMIN'
@@ -25,18 +27,33 @@ export type PolicyStance =
   | 'SELF_PRESERVE'   // 準時收工
   | 'BALANCED';       // 平均應付
 
+export type ClassCode =
+  | '1A' | '1B' | '1C'
+  | '2A' | '2B' | '2C'
+  | '3A' | '3B' | '3C'
+  | '4A' | '4B' | '4C'
+  | '5A' | '5B' | '5C'
+  | '6A' | '6B' | '6C';
+
+// Full 4-Floor HK Secondary School Map:
+// G/F: Canteen + Playground + Center Stairs (Up only)
+// 1/F: North (School Office + Principal's Office), Mid (1A-1C / 2A-2C opposing doors), South Stairs (Up/Down)
+// 2/F: Left (Staffroom), Right (3A-3C / 4A-4C opposing doors), Center Stairs (Up/Down)
+// 3/F: Classrooms (5A-5C / 6A-6C opposing doors), Stairs (Down only)
 export type RoomId =
-  | 'STAFFROOM'
-  | 'CORRIDOR'
-  | 'CLASS_4C'
-  | 'CLASS_1B'
-  | 'DETENTION_ROOM'
-  | 'GATE';
+  | 'STAFFROOM'          // 2/F Left
+  | 'CORRIDOR_2F'        // 2/F Corridor (Staffroom door left, 3A-4C right, Center stairs)
+  | 'CORRIDOR_1F'        // 1/F 3-way junction (North Offices, East 1A-2C, South stairs)
+  | 'CORRIDOR_3F'        // 3/F Corridor (5A-6C, Stairs down)
+  | 'SCHOOL_OFFICE'      // 1/F North (General Office + Principal's Office)
+  | 'GROUND_FLOOR'       // G/F Canteen + Playground + Gate
+  | 'CLASSROOM_PASTOR'   // Player's randomized pastoring + teaching class
+  | 'CLASSROOM_TEACH';   // Player's randomized second teaching class (junior form preference)
 
 export interface HiddenTraits {
   subjectKnowledge: number;
   social: number;
-  luck: number; // Static +2.5% per point
+  luck: number;
   physique: number;
   patience: number;
   resilience: number;
@@ -50,12 +67,12 @@ export interface HiddenTraits {
 }
 
 export interface HiddenMeters {
-  energy: number;       // 0-20, Floor 3
-  stress: number;       // 0-50, Danger thresholds 45 & 48
-  standing: number;     // 0-100
-  reputation: number;   // 0-100
-  parentTrust: number;  // 0-100
-  satisfaction: number; // 0-100
+  energy: number;
+  stress: number;
+  standing: number;
+  reputation: number;
+  parentTrust: number;
+  satisfaction: number;
 }
 
 export interface LeftoverItem {
@@ -63,7 +80,7 @@ export interface LeftoverItem {
   domain: DomainType;
   titleZh: string;
   loudTitleZh: string;
-  fermented: boolean; // false = Quiet Return (E), true = Loud Return (F)
+  fermented: boolean;
   createdWeek: number;
   escalatedCount: number;
 }
@@ -71,14 +88,14 @@ export interface LeftoverItem {
 export interface StudentProfile {
   id: string;
   nameZh: string;
-  className: '4C' | '1B';
-  seatRow: number;
-  seatCol: number;
-  rapport: number; // Hidden -100..+100
+  gender: 'MALE' | 'FEMALE';
+  className: ClassCode;
+  seatRow: number; // 0..2 (3 rows)
+  seatCol: number; // 0..4 (5 cols)
+  rapport: number;
   lastInteractedDay: number;
   missingHomeworkIds: string[];
   detentionScheduled: boolean;
-  detentionServedToday: boolean;
   rememberedEvents: string[];
 }
 
@@ -86,16 +103,18 @@ export interface StaffProfile {
   id: string;
   nameZh: string;
   roleZh: string;
+  gender: 'MALE' | 'FEMALE';
+  variant: 1 | 2;
   channel: 'FELLOW_TEACHERS' | 'MANAGEMENT';
-  trust: number; // Hidden -100..+100
+  trust: number;
   lastInteractedDay: number;
   rememberedEvents: string[];
 }
 
 export interface HomeworkAssignment {
   id: string;
-  className: '4C' | '1B';
-  title: string; // e.g. '4C Writing 1'
+  className: ClassCode;
+  title: string;
   type: 'DICTATION' | 'GRAMMAR' | 'COMPOSITION';
   dueWeek: number;
   dueDay: number;
@@ -104,16 +123,17 @@ export interface HomeworkAssignment {
   submittedCount: number;
   markedCount: number;
   missingStudentIds: string[];
-  followUpLogged: boolean; // Audited by Vice Principal in June
+  followUpLogged: boolean;
 }
 
 export interface ClassroomIncident {
   id: string;
   studentId: string;
   studentNameZh: string;
+  studentGender: 'MALE' | 'FEMALE';
   seatRow: number;
   seatCol: number;
-  postureHintZh: string; // Diegetic posture cue (no icons)
+  postureHintZh: string;
   promptZh: string;
   options: {
     id: string;
@@ -127,25 +147,25 @@ export interface ClassroomIncident {
 
 export interface TimetableSlot {
   id: string;
-  startMin: number; // Minutes from 00:00 (e.g. 480 = 08:00)
+  startMin: number;
   endMin: number;
   labelZh: string;
   targetRoom: RoomId;
-  className?: '4C' | '1B';
+  className?: ClassCode;
   isDoubleLesson?: boolean;
   isTeaching: boolean;
 }
 
 export interface EscalationState {
-  stage: 0 | 1 | 2 | 3; // 3 = Dismissal (Game Over)
+  stage: 0 | 1 | 2 | 3;
   warningNoteZh?: string;
 }
 
 export interface ActiveScene {
   titleZh: string;
   speakerZh: string;
+  speakerPortrait?: string;
   bodyZh: string;
-  effortShown?: EffortBand;
   choices: {
     id: string;
     labelZh: string;
@@ -163,31 +183,29 @@ export interface DeskPostIt {
 
 export interface GameState {
   mode: GameMode;
-  week: number; // -1, 0 = Late August Onboarding; 1..36 = Sept..June
-  dayOfWeek: 1 | 2 | 3 | 4 | 5; // Mon..Fri
-  clockMinutes: number; // 480 (08:00) to 1140 (19:00)
+  playerGender: PlayerGender;
+  pastorClass: ClassCode; // Randomized on new game
+  teachClass: ClassCode;  // Randomized on new game (junior form weighted)
+
+  week: number;
+  dayOfWeek: 1 | 2 | 3 | 4 | 5;
+  clockMinutes: number;
   clockPaused: boolean;
-  curfewTriggered: boolean; // True at 19:00 (1140)
+  curfewTriggered: boolean;
   snacksRemainingToday: number;
   coffeeCountToday: number;
 
-  // Spatial position
   currentRoom: RoomId;
-  playerGridX: number;
-  playerGridZ: number;
-
-  // Lesson state
   inLesson: boolean;
-  activeLessonClass: '4C' | '1B' | null;
-  lessonProgress: number; // 0..100
+  activeLessonClass: ClassCode | null;
+  lessonProgress: number;
   lessonIsDouble: boolean;
   activeIncidents: ClassroomIncident[];
 
-  // Core simulation structures
   traits: HiddenTraits;
   meters: HiddenMeters;
   escalation: EscalationState;
-  leftovers: LeftoverItem[]; // Max 3 FIFO slots
+  leftovers: LeftoverItem[];
   students: StudentProfile[];
   staff: StaffProfile[];
   homeworkLedger: HomeworkAssignment[];
@@ -196,11 +214,5 @@ export interface GameState {
   weeklyLog: string[];
   activeScene: ActiveScene | null;
   daySchedule: TimetableSlot[];
-  eveningSummaryZh: string | null;
   weeklyReviewLines: string[];
-  monthlyReviewData: {
-    rating: 'Below' | 'Meeting' | 'Above';
-    criticismZh: string;
-    expectationZh: string;
-  } | null;
 }

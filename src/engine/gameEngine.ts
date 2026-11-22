@@ -1,23 +1,24 @@
-// Core v1 Simulation Engine: Clock Dilation, Spatial Triage, Homework, 19:00 Curfew & Desk Recoveries
-
 import {
   createInitialHomework,
   generateInitialStaff,
   generateInitialStudents,
   getDayTimetable,
+  pickRandomizedAssignedClasses,
 } from '../data/schoolData';
 import {
+  ClassCode,
   ClassroomIncident,
   GameState,
+  PlayerGender,
   RoomId,
 } from '../types/game';
 import { enqueueLeftover } from './fermentation';
 
-export function createNewGameState(): GameState {
-  const students = generateInitialStudents();
-  const homeworkLedger = createInitialHomework();
+export function createNewGameState(playerGender: PlayerGender = 'MALE'): GameState {
+  const { pastorClass, teachClass } = pickRandomizedAssignedClasses();
+  const students = generateInitialStudents(pastorClass, teachClass);
+  const homeworkLedger = createInitialHomework(pastorClass, teachClass, students);
 
-  // Link missing homework IDs onto respective student profiles
   for (const hw of homeworkLedger) {
     for (const stuId of hw.missingStudentIds) {
       const stu = students.find((s) => s.id === stuId);
@@ -27,18 +28,18 @@ export function createNewGameState(): GameState {
 
   return {
     mode: 'WEEK_PLANNING',
+    playerGender,
+    pastorClass,
+    teachClass,
     week: 1,
     dayOfWeek: 1,
-    clockMinutes: 480, // 08:00
+    clockMinutes: 480,
     clockPaused: true,
     curfewTriggered: false,
     snacksRemainingToday: 2,
     coffeeCountToday: 0,
 
     currentRoom: 'STAFFROOM',
-    playerGridX: 2,
-    playerGridZ: 2,
-
     inLesson: false,
     activeLessonClass: null,
     lessonProgress: 0,
@@ -76,27 +77,23 @@ export function createNewGameState(): GameState {
     postIts: [
       {
         id: 'pi_welcome',
-        textZh: '開學首週提醒：08:20早會後記得檢查桌面英文功課收集情況，並留意欠交名單。',
+        textZh: `開學分班：本學年你任教 ${pastorClass}（兼班主任）及 ${teachClass} 英文科。08:20 早會後記得檢查桌面收齊功課！`,
         tone: 'INFO',
       },
     ],
     gossipFeed: [
-      '陳老師（隔離位）：「今年4C有幾個男仔成日遲交作文，記得早啲捉住佢哋。」',
+      `陳老師（隔離位）：「今年 ${pastorClass} 有幾個同學成日遲交作文，小息記得捉住佢哋。」`,
     ],
     weeklyLog: [],
     activeScene: null,
-    daySchedule: getDayTimetable(1),
-    eveningSummaryZh: null,
+    daySchedule: getDayTimetable(1, pastorClass, teachClass),
     weeklyReviewLines: [],
-    monthlyReviewData: null,
   };
 }
 
-// Dynamic clock speed multiplier:
-// 40x in classroom lesson | 60x normal campus | 72x (1.2x fatigue) after 15:30
 export function getClockSpeedMultiplier(state: GameState): number {
   if (state.inLesson) return 40;
-  if (state.clockMinutes >= 930) return 72; // After 15:30 -> 1.2x faster fatigue
+  if (state.clockMinutes >= 930) return 72;
   return 60;
 }
 
@@ -113,27 +110,22 @@ export function advanceClockTick(state: GameState, realDeltaSeconds: number): Ga
   const speed = getClockSpeedMultiplier(state);
   const inGameDelta = (realDeltaSeconds * speed) / 60;
   let nextMin = state.clockMinutes + inGameDelta;
-
   let next: GameState = { ...state };
 
-  // Auto-deliver homework stacks to Teacher's Desk after 08:20 (500 min)
   if (state.clockMinutes < 500 && nextMin >= 500) {
     next.homeworkLedger = next.homeworkLedger.map((hw) =>
-      hw.dueDay === next.dayOfWeek && !hw.deliveredToDesk
-        ? { ...hw, deliveredToDesk: true }
-        : hw
+      hw.dueDay === next.dayOfWeek && !hw.deliveredToDesk ? { ...hw, deliveredToDesk: true } : hw
     );
     next.postIts = [
       {
         id: `pi_hw_${Date.now()}`,
-        textZh: '班長已將今日英文功課放喺你枱面，請查閱欠交名單！',
+        textZh: '班長已將今日英文功課放喺你中央辦公桌，行埋去按互動制查閱！',
         tone: 'INFO',
       },
       ...next.postIts.slice(0, 4),
     ];
   }
 
-  // Handle in-class auto-teaching progress (resumes automatically whenever no dialogue is open)
   if (next.inLesson && next.activeLessonClass) {
     const teachRate =
       (next.lessonIsDouble ? 1.1 : 2.1) *
@@ -141,7 +133,6 @@ export function advanceClockTick(state: GameState, realDeltaSeconds: number): Ga
     next.lessonProgress = Math.min(100, next.lessonProgress + teachRate * realDeltaSeconds);
   }
 
-  // Hard 19:00 Janitor Curfew (1140 min)
   if (nextMin >= 1140) {
     nextMin = 1140;
     next.curfewTriggered = true;
@@ -150,7 +141,7 @@ export function advanceClockTick(state: GameState, realDeltaSeconds: number): Ga
     next.postIts = [
       {
         id: 'pi_curfew',
-        textZh: '【19:00 校工鎖門】今日唔可以再做嘢喇，請立即前往校門離校。',
+        textZh: '【19:00 校工鎖門】今日唔可以再做嘢喇，請前往 G/F 校門離校。',
         tone: 'URGENT',
       },
       ...next.postIts.slice(0, 4),
@@ -163,42 +154,23 @@ export function advanceClockTick(state: GameState, realDeltaSeconds: number): Ga
 
 export function spawnClassroomIncidents(
   state: GameState,
-  className: '4C' | '1B'
+  className: ClassCode
 ): ClassroomIncident[] {
   const classStudents = state.students.filter((s) => s.className === className);
   const picked = [...classStudents].sort(() => Math.random() - 0.5).slice(0, 3);
 
   const templates = [
-    {
-      posture: '趴喺枱面無拎書出嚟',
-      prompt: '見到佢雙眼無神趴喺度，英文書都未打開。',
-    },
-    {
-      posture: '側身同隔離位細聲講笑',
-      prompt: '你轉身寫黑板時，佢正同隔離位偷笑傾偈。',
-    },
-    {
-      posture: '舉起手但一臉困惑',
-      prompt: '佢指住工作紙上嘅文法題，唔太明白點樣用過去完成式。',
-    },
+    { posture: '趴喺枱面無拎書出嚟', prompt: '見到佢雙眼無神趴喺度，英文書都未打開。' },
+    { posture: '側身同隔離位細聲講笑', prompt: '你轉身寫黑板時，佢正同隔離位偷笑傾偈。' },
+    { posture: '舉起手但一臉困惑', prompt: '佢指住工作紙上嘅文法題，唔太明白點樣用過去完成式。' },
   ];
 
   return picked.map((stu, i) => {
     const tpl = templates[i % templates.length];
     const hasMissingHw = stu.missingHomeworkIds.length > 0;
     const options: ClassroomIncident['options'] = [
-      {
-        id: 'opt_gentle',
-        labelZh: '行埋去低聲提點並示範一題',
-        effort: '中高',
-        traitUsed: 'patience',
-      },
-      {
-        id: 'opt_firm',
-        labelZh: '嚴肅點名警告，要求即時跟上進度',
-        effort: '低中',
-        traitUsed: 'social',
-      },
+      { id: 'opt_gentle', labelZh: '行埋去低聲提點並示範一題', effort: '中高', traitUsed: 'patience' },
+      { id: 'opt_firm', labelZh: '嚴肅點名警告，要求即時跟上進度', effort: '低中', traitUsed: 'social' },
     ];
     if (hasMissingHw) {
       options.push({
@@ -214,6 +186,7 @@ export function spawnClassroomIncidents(
       id: `inc_${stu.id}_${Date.now()}_${i}`,
       studentId: stu.id,
       studentNameZh: stu.nameZh,
+      studentGender: stu.gender,
       seatRow: stu.seatRow,
       seatCol: stu.seatCol,
       postureHintZh: tpl.posture,
@@ -227,14 +200,14 @@ export function spawnClassroomIncidents(
 }
 
 export function enterRoom(state: GameState, targetRoom: RoomId): GameState {
-  if (state.curfewTriggered && targetRoom !== 'GATE') {
+  if (state.curfewTriggered && targetRoom !== 'GROUND_FLOOR') {
     return {
       ...state,
       activeScene: {
         titleZh: '校工鎖門提醒 (19:00)',
         speakerZh: '校工陳伯',
-        bodyZh: '「老師，已經七點鐘啦，我哋要鎖課室同教員室門喇，快啲返屋企休息啦！」',
-        choices: [{ id: 'ok', labelZh: '明白，前往校門離校', actionType: 'INFO_ONLY' }],
+        bodyZh: '「老師，已經七點鐘啦，我哋要鎖課室同教員室門喇，快啲落 G/F 校門返屋企休息啦！」',
+        choices: [{ id: 'ok', labelZh: '明白，前往 G/F 校門', actionType: 'INFO_ONLY' }],
       },
     };
   }
@@ -242,11 +215,11 @@ export function enterRoom(state: GameState, targetRoom: RoomId): GameState {
   let next: GameState = {
     ...state,
     currentRoom: targetRoom,
-    clockMinutes: Math.min(1140, state.clockMinutes + 2), // Walking between rooms costs 2 in-game mins
+    clockMinutes: Math.min(1140, state.clockMinutes + 2),
   };
 
-  if (targetRoom === 'CLASS_4C' || targetRoom === 'CLASS_1B') {
-    const cls = targetRoom === 'CLASS_4C' ? '4C' : '1B';
+  if (targetRoom === 'CLASSROOM_PASTOR' || targetRoom === 'CLASSROOM_TEACH') {
+    const cls = targetRoom === 'CLASSROOM_PASTOR' ? state.pastorClass : state.teachClass;
     const currentSlot = state.daySchedule.find(
       (s) =>
         s.className === cls &&
@@ -261,27 +234,23 @@ export function enterRoom(state: GameState, targetRoom: RoomId): GameState {
       next.lessonIsDouble = Boolean(currentSlot.isDoubleLesson);
       next.activeIncidents = spawnClassroomIncidents(next, cls);
     }
-  } else {
-    // Leaving classroom ends active lesson; unresolved incidents feed Leftover tray
-    if (state.inLesson) {
-      const unresolvedCount = state.activeIncidents.filter((i) => !i.resolved).length;
-      if (unresolvedCount > 0) {
-        next = enqueueLeftover(
-          next,
-          'STUDENT_ISSUES',
-          `課堂未及處理的 ${unresolvedCount} 宗學生狀況`
-        );
-      }
-      next.inLesson = false;
-      next.activeLessonClass = null;
-      next.activeIncidents = [];
+  } else if (state.inLesson) {
+    const unresolvedCount = state.activeIncidents.filter((i) => !i.resolved).length;
+    if (unresolvedCount > 0) {
+      next = enqueueLeftover(
+        next,
+        'STUDENT_ISSUES',
+        `課堂未及處理的 ${unresolvedCount} 宗學生狀況`
+      );
     }
+    next.inLesson = false;
+    next.activeLessonClass = null;
+    next.activeIncidents = [];
   }
 
   return next;
 }
 
-// Teacher's Desk Micro-Recoveries (blocked after 19:00 curfew)
 export function performDeskRecovery(
   state: GameState,
   kind: 'NAP_10' | 'NAP_20' | 'NAP_30' | 'COFFEE' | 'SNACK' | 'CHAT'
@@ -296,7 +265,6 @@ export function performDeskRecovery(
     next.clockMinutes = Math.min(1140, next.clockMinutes + mins);
     next.meters.energy = Math.min(20, next.meters.energy + gain);
     next.meters.stress = Math.max(0, next.meters.stress - 2);
-    // Small gossip risk if napping during core teaching hours (08:20 - 15:30)
     if (state.clockMinutes >= 500 && state.clockMinutes < 930 && Math.random() < 0.35) {
       next.meters.reputation = Math.max(0, next.meters.reputation - 2);
       next.gossipFeed = [
@@ -320,19 +288,17 @@ export function performDeskRecovery(
     next.meters.stress = Math.max(0, next.meters.stress - 4);
     const hints = [
       '陳老師細聲話你知：「周副校今年六月查簿特別嚴，記住每份欠交都要寫低跟進紀錄。」',
-      '吳老師笑住講：「張科主任最怕人遲交成績表，其他小事反而好商量。」',
+      '張科主任經過提醒：「下星期三前要交齊英文科教學進度表。」',
       '陳老師遞粒糖畀你：「頭一年教書係咁㗎喇，唔好樣樣嘢都攬上身。」',
     ];
-    const picked = hints[Math.floor(Math.random() * hints.length)];
-    next.gossipFeed = [picked, ...next.gossipFeed.slice(0, 7)];
+    next.gossipFeed = [hints[Math.floor(Math.random() * hints.length)], ...next.gossipFeed.slice(0, 7)];
   }
 
   return next;
 }
 
-// Conscious leave after 15:30 (or forced after 19:00) -> v1 Simplified "Go Home & Rest"
 export function leaveSchoolForToday(state: GameState): GameState {
-  if (state.clockMinutes < 930) return state; // Cannot leave before 15:30 wrap-up bell
+  if (state.clockMinutes < 930) return state;
 
   const isFriday = state.dayOfWeek === 5;
   const nextDay = (isFriday ? 1 : state.dayOfWeek + 1) as 1 | 2 | 3 | 4 | 5;
@@ -351,7 +317,7 @@ export function leaveSchoolForToday(state: GameState): GameState {
     inLesson: false,
     activeLessonClass: null,
     activeIncidents: [],
-    daySchedule: getDayTimetable(nextDay),
+    daySchedule: getDayTimetable(nextDay, state.pastorClass, state.teachClass),
     meters: {
       ...state.meters,
       energy: Math.min(20, state.meters.energy + 8),
@@ -359,7 +325,7 @@ export function leaveSchoolForToday(state: GameState): GameState {
     },
     weeklyReviewLines: isFriday
       ? [
-          `第 ${state.week} 週結束：你成功撐過一週嘅雙班英文教學與班務。`,
+          `第 ${state.week} 週結束：你成功撐過一週嘅 ${state.pastorClass} 與 ${state.teachClass} 英文教學。`,
           state.leftovers.length > 0
             ? `提示：桌面仍有 ${state.leftovers.length} 項積壓工作未清，下週一要優先處理。`
             : '提示：本週桌面積壓盤清空，下週開局節奏會較輕鬆。',

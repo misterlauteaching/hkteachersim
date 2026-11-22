@@ -1,5 +1,3 @@
-// 3-Slot FIFO Leftover Fermentation & Escalation Ladder
-
 import { DomainType, GameState, LeftoverItem } from '../types/game';
 
 const QUIET_TEMPLATES: Record<DomainType, { title: string; loud: string }> = {
@@ -34,23 +32,15 @@ export function enqueueLeftover(
   domain: DomainType,
   customTitleZh?: string
 ): GameState {
-  // Same domain item does not stack duplicates
   const existingIdx = state.leftovers.findIndex((item) => item.domain === domain);
   if (existingIdx !== -1) {
     const updated = [...state.leftovers];
-    updated[existingIdx] = {
-      ...updated[existingIdx],
-      fermented: true,
-    };
+    updated[existingIdx] = { ...updated[existingIdx], fermented: true };
     return {
       ...state,
       leftovers: updated,
       postIts: [
-        {
-          id: `pi_${Date.now()}`,
-          textZh: `【發酵提醒】${updated[existingIdx].titleZh}`,
-          tone: 'WARN',
-        },
+        { id: `pi_${Date.now()}`, textZh: `【發酵提醒】${updated[existingIdx].titleZh}`, tone: 'WARN' },
         ...state.postIts.slice(0, 4),
       ],
     };
@@ -67,7 +57,6 @@ export function enqueueLeftover(
     escalatedCount: 0,
   };
 
-  // Max 3 slots: if 4th item arrives, oldest overflows and erupts LOUD this week
   if (state.leftovers.length >= 3) {
     const [oldest, ...rest] = state.leftovers;
     const erupted: LeftoverItem = {
@@ -75,7 +64,6 @@ export function enqueueLeftover(
       fermented: true,
       escalatedCount: oldest.escalatedCount + 1,
     };
-
     const nextStage = Math.min(3, state.escalation.stage + 1) as 0 | 1 | 2 | 3;
 
     return {
@@ -95,14 +83,9 @@ export function enqueueLeftover(
         ...state.gossipFeed.slice(0, 7),
       ],
       postIts: [
-        {
-          id: `pi_loud_${Date.now()}`,
-          textZh: `【緊急】${erupted.loudTitleZh}`,
-          tone: 'URGENT',
-        },
+        { id: `pi_loud_${Date.now()}`, textZh: `【緊急】${erupted.loudTitleZh}`, tone: 'URGENT' },
         ...state.postIts.slice(0, 4),
       ],
-      weeklyLog: [...state.weeklyLog, `爆煲事件：${erupted.loudTitleZh}`],
     };
   }
 
@@ -110,20 +93,13 @@ export function enqueueLeftover(
     ...state,
     leftovers: [...state.leftovers, newItem],
     postIts: [
-      {
-        id: `pi_${Date.now()}`,
-        textZh: `待辦積壓：${newItem.titleZh}`,
-        tone: 'INFO',
-      },
+      { id: `pi_${Date.now()}`, textZh: `待辦積壓：${newItem.titleZh}`, tone: 'INFO' },
       ...state.postIts.slice(0, 4),
     ],
   };
 }
 
 export function resolveLeftover(state: GameState, leftoverId: string): GameState {
-  const target = state.leftovers.find((l) => l.id === leftoverId);
-  if (!target) return state;
-
   return {
     ...state,
     leftovers: state.leftovers.filter((l) => l.id !== leftoverId),
@@ -132,6 +108,5 @@ export function resolveLeftover(state: GameState, leftoverId: string): GameState
       stress: Math.max(0, state.meters.stress - 2),
       satisfaction: Math.min(100, state.meters.satisfaction + 2),
     },
-    weeklyLog: [...state.weeklyLog, `已清理積壓：${target.titleZh}`],
   };
 }
