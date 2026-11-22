@@ -18,6 +18,7 @@ import {
 import { simulateRoutineDayMacro, simulateWorkMicro } from './engine/simulation';
 import { defaultSaveAdapter } from './save/saveAdapter';
 import { ClassroomIncident, GameState, PolicyStance, RoomId } from './types/game';
+import { DeskHubModal } from './ui/DeskHubModal';
 import { CampusViewport } from './world/CampusViewport';
 
 const DAY_NAMES = ['', '星期一', '星期二', '星期三', '星期四', '星期五'];
@@ -28,14 +29,12 @@ export default function App() {
   const [selectedStance, setSelectedStance] = useState<PolicyStance>('BALANCED');
   const [deskModalOpen, setDeskModalOpen] = useState<boolean>(false);
 
-  // Load autosave on mount if present
   useEffect(() => {
     defaultSaveAdapter.load().then((saved) => {
       if (saved) setState(saved);
     });
   }, []);
 
-  // Real-time continuous clock loop during SCHOOL_DAY mode
   useEffect(() => {
     if (state.mode !== 'SCHOOL_DAY') return;
     const timer = setInterval(() => {
@@ -81,7 +80,7 @@ export default function App() {
     let next: GameState = {
       ...state,
       clockPaused: false,
-      activeScene: null, // Auto-resumes classroom teaching immediately with zero walk-back penalty
+      activeScene: null,
     };
 
     if (choice.actionType === 'RESOLVE_INCIDENT' && choice.payload) {
@@ -130,7 +129,6 @@ export default function App() {
         boxShadow: stressCue.dangerVignette ? 'inset 0 0 60px rgba(220,38,38,0.65)' : 'none',
       }}
     >
-      {/* Top Diegetic Status Bar (Zero Raw Numbers Leaked) */}
       <header
         style={{
           background: '#1e293b',
@@ -171,9 +169,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Content Area */}
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 380px', gap: 14, padding: 14, overflow: 'hidden' }}>
-        {/* Left Column: Mode View */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
           {state.mode === 'WEEK_PLANNING' && (
             <div style={{ background: '#1e293b', borderRadius: 10, padding: 18, border: '1px solid #334155' }}>
@@ -251,7 +247,6 @@ export default function App() {
                 onOpenDesk={() => setDeskModalOpen(true)}
               />
 
-              {/* Room Navigation Bar */}
               <div style={{ background: '#1e293b', borderRadius: 10, padding: 12, border: '1px solid #334155', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: '#94a3b8' }}>校園移動：</span>
                 {(
@@ -334,7 +329,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Right Column: Teacher's Desk Hub, 3-Slot Leftover Tray, Homework Ledger & Gossip */}
         <aside style={{ background: '#1e293b', borderRadius: 10, padding: 14, border: '1px solid #334155', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24', marginBottom: 6 }}>
@@ -422,43 +416,21 @@ export default function App() {
         </aside>
       </div>
 
-      {/* Dedicated Teacher's Desk Modal when clicking the desk in Staffroom */}
-      {deskModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 45 }}>
-          <div style={{ width: '100%', maxWidth: 560, background: '#1e293b', border: '2px solid #2dd4bf', borderRadius: 12, padding: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ color: '#2dd4bf' }}>你的辦公桌・工作與小休台</h3>
-              <button onClick={() => setDeskModalOpen(false)} style={{ background: '#334155', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>關閉</button>
-            </div>
+      <DeskHubModal
+        open={deskModalOpen}
+        curfewTriggered={state.curfewTriggered}
+        snacksRemaining={state.snacksRemainingToday}
+        energyCueLabel={energyCue.labelZh}
+        leftovers={state.leftovers}
+        homeworkLedger={state.homeworkLedger}
+        postIts={state.postIts}
+        getMissingNames={getMissingStudentNames}
+        onClose={() => setDeskModalOpen(false)}
+        onRecover={(kind) => commitState(performDeskRecovery(state, kind))}
+        onResolveLeftover={(id) => commitState(resolveLeftover(state, id))}
+        onSimMarking={(hwId) => commitState(simulateWorkMicro(state, 'MARKING', hwId))}
+      />
 
-            {state.curfewTriggered ? (
-              <p style={{ color: '#fca5a5', fontSize: 13 }}>
-                校工已經準備鎖門（19:00），今日唔可以再做嘢喇，請前往校門離校。
-              </p>
-            ) : (
-              <>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24', marginBottom: 6 }}>便利貼提示</div>
-                <ul style={{ paddingLeft: 16, fontSize: 12, color: '#e2e8f0', marginBottom: 12 }}>
-                  {state.postIts.slice(0, 3).map((p) => (
-                    <li key={p.id}>{p.textZh}</li>
-                  ))}
-                </ul>
-
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#a7f3d0', marginBottom: 6 }}>即時恢復／休息</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button onClick={() => commitState(performDeskRecovery(state, 'NAP_10'))} style={recBtnStyle}>趴低小睡 10 分鐘</button>
-                  <button onClick={() => commitState(performDeskRecovery(state, 'NAP_30'))} style={recBtnStyle}>趴低小睡 30 分鐘</button>
-                  <button onClick={() => commitState(performDeskRecovery(state, 'COFFEE'))} style={recBtnStyle}>沖杯咖啡／奶茶</button>
-                  <button onClick={() => commitState(performDeskRecovery(state, 'SNACK'))} style={recBtnStyle}>食零食 ({state.snacksRemainingToday} 份)</button>
-                  <button onClick={() => commitState(performDeskRecovery(state, 'CHAT'))} style={recBtnStyle}>同隔離位傾偈</button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Pokemon-Style Paused Scene Dialogue Modal */}
       {state.activeScene && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.78)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 24, zIndex: 50 }}>
           <div style={{ width: '100%', maxWidth: 680, background: '#0f172a', border: '3px solid #2dd4bf', borderRadius: 12, padding: 18 }}>
