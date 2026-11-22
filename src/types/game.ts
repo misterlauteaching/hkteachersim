@@ -22,10 +22,10 @@ export type EffortBand = '低' | '低中' | '中' | '中高' | '高' | '極高';
 export type AttitudeBand = 'Wary' | 'Guarded' | 'Neutral' | 'Warm' | 'Devoted';
 
 export type PolicyStance =
-  | 'ADMIN_FIRST'     // 保底交差
-  | 'STUDENTS_FIRST'  // 學生為本
-  | 'SELF_PRESERVE'   // 準時收工
-  | 'BALANCED';       // 平均應付
+  | 'ADMIN_FIRST'
+  | 'STUDENTS_FIRST'
+  | 'SELF_PRESERVE'
+  | 'BALANCED';
 
 export type ClassCode =
   | '1A' | '1B' | '1C'
@@ -35,20 +35,16 @@ export type ClassCode =
   | '5A' | '5B' | '5C'
   | '6A' | '6B' | '6C';
 
-// Full 4-Floor HK Secondary School Map:
-// G/F: Canteen + Playground + Center Stairs (Up only)
-// 1/F: North (School Office + Principal's Office), Mid (1A-1C / 2A-2C opposing doors), South Stairs (Up/Down)
-// 2/F: Left (Staffroom), Right (3A-3C / 4A-4C opposing doors), Center Stairs (Up/Down)
-// 3/F: Classrooms (5A-5C / 6A-6C opposing doors), Stairs (Down only)
 export type RoomId =
   | 'STAFFROOM'          // 2/F Left
-  | 'CORRIDOR_2F'        // 2/F Corridor (Staffroom door left, 3A-4C right, Center stairs)
+  | 'CORRIDOR_2F'        // 2/F Corridor (Staffroom left, 3A-4C right, Center stairs)
   | 'CORRIDOR_1F'        // 1/F 3-way junction (North Offices, East 1A-2C, South stairs)
   | 'CORRIDOR_3F'        // 3/F Corridor (5A-6C, Stairs down)
-  | 'SCHOOL_OFFICE'      // 1/F North (General Office + Principal's Office)
-  | 'GROUND_FLOOR'       // G/F Canteen + Playground + Gate
+  | 'SCHOOL_OFFICE'      // 1/F North General Office
+  | 'PRINCIPAL_OFFICE'   // 1/F North Principal & Vice Principal Office (2 executive desks)
+  | 'GROUND_FLOOR'       // G/F Canteen + Playground + Center Stairs (Up only)
   | 'CLASSROOM_PASTOR'   // Player's randomized pastoring + teaching class
-  | 'CLASSROOM_TEACH';   // Player's randomized second teaching class (junior form preference)
+  | 'CLASSROOM_TEACH';   // Player's randomized second teaching class
 
 export interface HiddenTraits {
   subjectKnowledge: number;
@@ -90,8 +86,8 @@ export interface StudentProfile {
   nameZh: string;
   gender: 'MALE' | 'FEMALE';
   className: ClassCode;
-  seatRow: number; // 0..2 (3 rows)
-  seatCol: number; // 0..4 (5 cols)
+  seatRow: number; // 0..2
+  seatCol: number; // 0..4
   rapport: number;
   lastInteractedDay: number;
   missingHomeworkIds: string[];
@@ -184,8 +180,8 @@ export interface DeskPostIt {
 export interface GameState {
   mode: GameMode;
   playerGender: PlayerGender;
-  pastorClass: ClassCode; // Randomized on new game
-  teachClass: ClassCode;  // Randomized on new game (junior form weighted)
+  pastorClass: ClassCode;
+  teachClass: ClassCode;
 
   week: number;
   dayOfWeek: 1 | 2 | 3 | 4 | 5;
